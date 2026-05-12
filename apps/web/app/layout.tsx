@@ -3,6 +3,7 @@ import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
 import Nav from "@/components/ui/Nav";
 
+
 export const metadata: Metadata = {
   title: "MediQueue",
   description: "Medical Centre Queue Management Platform",

@@ -1,3 +1,4 @@
+import 'dotenv/config'
 import Fastify from 'fastify'
 import { authPlugin } from './plugins/auth.js'
 import { postgresPlugin } from './plugins/postgres.js'

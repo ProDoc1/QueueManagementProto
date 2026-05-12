@@ -1,0 +1,74 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: medcenter
+      POSTGRES_PASSWORD: medcenter_dev
+      POSTGRES_DB: medcenter
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../apps/api/migrations/1_initial_schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  api:
+    build:
+      context: ../apps/api
+      dockerfile: ../../infra/Dockerfile.api
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://medcenter:medcenter_dev@postgres:5432/medcenter
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: change_me_in_production
+      COOKIE_SECRET: change_me_in_production
+      WEB_URL: http://localhost:3000
+      NODE_ENV: development
+      PORT: 4000
+    depends_on:
+      - postgres
+      - redis
+
+  worker:
+    build:
+      context: ../apps/api
+      dockerfile: ../../infra/Dockerfile.api
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://medcenter:medcenter_dev@postgres:5432/medcenter
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: change_me_in_production
+      COOKIE_SECRET: change_me_in_production
+      NODE_ENV: development
+      PORT: 4001
+      RUN_JOBS: "true"
+    depends_on:
+      - postgres
+      - redis
+
+  web:
+    build:
+      context: ../apps/web
+      dockerfile: ../../infra/Dockerfile.web
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:4000
+      NEXT_PUBLIC_SOCKET_URL: http://localhost:4000
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:

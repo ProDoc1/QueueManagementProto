@@ -20,8 +20,8 @@ export default function ReceptionistQueuePage() {
   const [loadingDoctors, setLoadingDoctors] = useState(true)
 
   useEffect(() => {
-    apiRequest<Doctor[]>('/api/doctors', { token })
-      .then((list) => {
+    apiRequest<{ data: Doctor[] }>('/api/doctors', { token })
+      .then(({ data: list }) => {
         setDoctors(list)
         const first = list[0]
         if (first) {

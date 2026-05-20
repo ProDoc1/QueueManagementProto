@@ -8,28 +8,34 @@ import type { WalkInQueueEntry, QueueUpdateEvent } from '@repo/types'
 interface Props {
   doctorId: string
   clinicId?: string
-  token: string
-  initial: WalkInQueueEntry[]
+  token?: string
+  initial?: WalkInQueueEntry[]
 }
 
-export default function QueueBoard({ doctorId, clinicId, token, initial }: Props) {
+export default function QueueBoard({ doctorId, clinicId, token = '', initial = [] }: Props) {
   const [queue, setQueue] = useState<WalkInQueueEntry[]>(initial)
   const [calling, setCalling] = useState(false)
+  const [completing, setCompleting] = useState(false)
+
+  function refetch() {
+    apiRequest<WalkInQueueEntry[]>(`/api/queue?doctorId=${doctorId}`, { token })
+      .then(setQueue)
+      .catch(() => {})
+  }
 
   useEffect(() => {
+    refetch()
+
     const socket = getSocket(token)
     if (clinicId) socket.emit('subscribe_clinic_queue', clinicId)
+    socket.emit('subscribe_doctor_queue', doctorId)
 
     socket.on('queue_update', (event: QueueUpdateEvent) => {
-      if (event.doctorId === doctorId) {
-        // Re-fetch queue on update
-        apiRequest<WalkInQueueEntry[]>(`/api/queue?doctorId=${doctorId}`, { token })
-          .then(setQueue)
-          .catch(() => {})
-      }
+      if (event.doctorId === doctorId) refetch()
     })
 
     return () => { socket.off('queue_update') }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doctorId, clinicId, token])
 
   async function callNext() {
@@ -42,6 +48,19 @@ export default function QueueBoard({ doctorId, clinicId, token, initial }: Props
       })
     } finally {
       setCalling(false)
+    }
+  }
+
+  async function completeCurrent() {
+    setCompleting(true)
+    try {
+      await apiRequest('/api/queue/complete-current', {
+        method: 'POST',
+        token,
+        body: { doctorId },
+      })
+    } finally {
+      setCompleting(false)
     }
   }
 
@@ -59,13 +78,22 @@ export default function QueueBoard({ doctorId, clinicId, token, initial }: Props
               <span className="text-3xl font-bold text-blue-800">#{current.queueNumber}</span>
               <span className="ml-3 text-lg text-blue-700">{current.patientName}</span>
             </div>
-            <button
-              onClick={callNext}
-              disabled={calling}
-              className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
-            >
-              {calling ? 'Calling...' : 'Call Next'}
-            </button>
+            <div className="flex gap-2">
+              <button
+                onClick={completeCurrent}
+                disabled={completing || calling}
+                className="bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 px-4 py-2 rounded-lg font-semibold transition-colors"
+              >
+                {completing ? 'Completing...' : 'Complete'}
+              </button>
+              <button
+                onClick={callNext}
+                disabled={calling || completing}
+                className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white px-6 py-2 rounded-lg font-semibold transition-colors"
+              >
+                {calling ? 'Calling...' : 'Call Next'}
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -16,3 +16,4 @@ export interface WalkInQueueEntry {
   // joined
   doctorName?: string
 }
+

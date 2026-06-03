@@ -1,8 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth-context";
-import Nav from "@/components/ui/Nav";
-
 
 export const metadata: Metadata = {
   title: "MediQueue",
@@ -16,9 +14,8 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" suppressHydrationWarning>
-      <body suppressHydrationWarning className="min-h-screen bg-gray-50">
+      <body suppressHydrationWarning className="min-h-screen">
         <AuthProvider>
-          <Nav />
           {children}
         </AuthProvider>
       </body>

@@ -1,9 +1,9 @@
 'use client'
 
-import ProtectedPage from '@/components/ui/ProtectedPage'
-import { useAuth } from '@/lib/auth-context'
 import { useEffect, useState } from 'react'
+import { useAuth } from '@/lib/auth-context'
 import { apiRequest } from '@/lib/api-client'
+import { CheckCircle, XCircle, Calendar } from 'lucide-react'
 
 interface Appointment {
   id: string
@@ -14,12 +14,12 @@ interface Appointment {
   slotPosition: number
 }
 
-const statusColor: Record<string, string> = {
-  scheduled:   'bg-blue-100 text-blue-800',
-  confirmed:   'bg-green-100 text-green-800',
-  completed:   'bg-gray-100 text-gray-600',
-  no_show:     'bg-red-100 text-red-800',
-  cancelled:   'bg-yellow-100 text-yellow-800',
+const STATUS_STYLE: Record<string, string> = {
+  scheduled:  'text-[#1A73E8] bg-[#1A73E8]/10',
+  confirmed:  'text-[#34A853] bg-[#34A853]/10',
+  completed:  'text-gray-500 bg-gray-500/10',
+  no_show:    'text-[#EA4335] bg-[#EA4335]/10',
+  cancelled:  'text-[#F9AB00] bg-[#F9AB00]/10',
 }
 
 export default function DoctorSchedulePage() {
@@ -34,10 +34,10 @@ export default function DoctorSchedulePage() {
     try {
       const res = await apiRequest<{ data: Appointment[] }>(
         `/api/appointments/schedule?date=${date}`,
-        { token: accessToken }
+        { token: accessToken },
       )
       setAppointments(res.data)
-    } catch { /* handle */ }
+    } catch { /* ignore */ }
     finally { setLoading(false) }
   }
 
@@ -49,38 +49,58 @@ export default function DoctorSchedulePage() {
     fetchSchedule()
   }
 
+  const scheduled = appointments.filter((a) => a.status === 'scheduled' || a.status === 'confirmed')
+  const done      = appointments.filter((a) => a.status === 'completed' || a.status === 'no_show' || a.status === 'cancelled')
+
   return (
-    <ProtectedPage allowedRoles={['doctor']}>
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">My Schedule</h1>
-            <p className="text-gray-500 text-sm mt-1">Today's appointments</p>
+    <div className="flex-1 overflow-y-auto p-6 space-y-5" style={{ scrollbarWidth: 'none' }}>
+      {/* KPI row */}
+      <div className="grid grid-cols-3 gap-4">
+        {[
+          { label: 'Scheduled',  value: scheduled.length, color: '#1A73E8' },
+          { label: 'Completed',  value: appointments.filter((a) => a.status === 'completed').length, color: '#34A853' },
+          { label: 'No-Shows',   value: appointments.filter((a) => a.status === 'no_show').length,  color: '#EA4335' },
+        ].map((kpi) => (
+          <div key={kpi.label} className="bg-[#141B2B] rounded-xl p-4 border border-white/5">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center mb-2" style={{ background: `${kpi.color}20` }}>
+              <Calendar className="w-4 h-4" style={{ color: kpi.color }} />
+            </div>
+            <p className="text-3xl font-black text-white">{kpi.value}</p>
+            <p className="text-xs text-gray-500 mt-0.5">{kpi.label}</p>
           </div>
+        ))}
+      </div>
+
+      {/* Date picker + list */}
+      <div className="bg-[#141B2B] rounded-xl border border-white/5 overflow-hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-white/5">
+          <h3 className="text-sm font-semibold text-white">Appointments</h3>
           <input
             type="date"
             value={date}
             onChange={(e) => setDate(e.target.value)}
-            className="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600"
+            className="bg-[#0D1117] border border-white/10 text-white text-xs rounded-lg px-2 py-1.5 outline-none [color-scheme:dark]"
           />
         </div>
 
         {loading ? (
-          <div className="text-center py-16 text-gray-400 text-sm">Loading schedule…</div>
+          <div className="py-16 text-center text-gray-500 text-sm">Loading schedule…</div>
         ) : appointments.length === 0 ? (
-          <div className="text-center py-16 bg-white rounded-2xl border border-gray-200">
-            <p className="text-gray-400 text-sm">No appointments for this date</p>
-          </div>
+          <div className="py-16 text-center text-gray-600 text-sm">No appointments for this date</div>
         ) : (
-          <div className="space-y-3">
+          <div className="divide-y divide-white/5">
             {appointments.map((appt) => (
-              <div key={appt.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between shadow-sm">
+              <div key={appt.id} className={`flex items-center justify-between px-4 py-3.5 transition-colors ${
+                appt.status === 'scheduled' || appt.status === 'confirmed' ? 'hover:bg-white/3' : 'opacity-60'
+              }`}>
                 <div className="flex items-center gap-4">
-                  <div className="w-10 h-10 rounded-full bg-brand-100 text-brand-600 flex items-center justify-center font-bold text-sm">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm text-white ${
+                    appt.status === 'scheduled' || appt.status === 'confirmed' ? 'bg-[#1A73E8]' : 'bg-gray-700'
+                  }`}>
                     #{appt.slotPosition}
                   </div>
                   <div>
-                    <p className="font-medium text-gray-900 text-sm">{appt.patientName}</p>
+                    <p className="font-medium text-white text-sm">{appt.patientName}</p>
                     <p className="text-xs text-gray-500">
                       {new Date(appt.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       {' · '}{appt.type}
@@ -88,22 +108,22 @@ export default function DoctorSchedulePage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-3">
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusColor[appt.status] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {appt.status}
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLE[appt.status] ?? 'text-gray-500 bg-gray-500/10'}`}>
+                    {appt.status.replace('_', '-')}
                   </span>
-                  {appt.status !== 'completed' && appt.status !== 'cancelled' && (
+                  {(appt.status === 'scheduled' || appt.status === 'confirmed') && (
                     <>
                       <button
                         onClick={() => markAction(appt.id, 'complete')}
-                        className="text-xs bg-green-600 text-white px-3 py-1.5 rounded-lg hover:bg-green-700 transition-colors"
+                        className="flex items-center gap-1 text-xs bg-[#34A853]/15 hover:bg-[#34A853]/25 text-[#34A853] px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        Complete
+                        <CheckCircle className="w-3.5 h-3.5" /> Complete
                       </button>
                       <button
                         onClick={() => markAction(appt.id, 'no-show')}
-                        className="text-xs bg-red-100 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-200 transition-colors"
+                        className="flex items-center gap-1 text-xs bg-[#EA4335]/10 hover:bg-[#EA4335]/20 text-[#EA4335] px-3 py-1.5 rounded-lg transition-colors"
                       >
-                        No-show
+                        <XCircle className="w-3.5 h-3.5" /> No-Show
                       </button>
                     </>
                   )}
@@ -113,6 +133,6 @@ export default function DoctorSchedulePage() {
           </div>
         )}
       </div>
-    </ProtectedPage>
+    </div>
   )
 }

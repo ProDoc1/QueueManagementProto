@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 
-const roleHome: Record<string, string> = {
+const ROLE_HOME: Record<string, string> = {
   patient:      '/patient/book',
   doctor:       '/doctor/schedule',
   receptionist: '/receptionist/queue',
@@ -25,10 +25,8 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
     try {
-      await login(email, password)
-      const res = await fetch('/api/auth/me-redirect')
-      // Role-based redirect handled after login context updates
-      router.push('/')
+      const user = await login(email, password)
+      router.push(ROLE_HOME[user?.role ?? ''] ?? '/')
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed')
     } finally {
@@ -37,79 +35,85 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-2xl font-bold text-brand-900">MediQueue</h1>
+    <div className="min-h-screen bg-[#0D1117] flex flex-col items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
+      <div className="w-full max-w-md">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 rounded-xl bg-[#1A73E8] flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(26,115,232,0.25)]">
+            <span className="text-white text-lg font-black">MQ</span>
+          </div>
+          <h1 className="text-2xl font-black text-white">MediQueue</h1>
           <p className="text-gray-500 text-sm mt-1">Sign in to your account</p>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-              placeholder="you@example.com"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-600 focus:border-transparent"
-              placeholder="••••••••"
-            />
-          </div>
-
-          {error && (
-            <div className="bg-red-50 text-red-700 text-sm rounded-lg px-3 py-2 border border-red-200">
-              {error}
+        <div className="bg-[#141B2B] rounded-2xl border border-white/5 p-8">
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label className="text-xs text-gray-400 mb-1.5 block">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="you@example.com"
+                className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-[#1A73E8]/50 transition-colors"
+              />
             </div>
-          )}
+            <div>
+              <label className="text-xs text-gray-400 mb-1.5 block">Password</label>
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="••••••••"
+                className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-[#1A73E8]/50 transition-colors"
+              />
+            </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full bg-brand-600 text-white rounded-lg py-2.5 text-sm font-semibold hover:bg-brand-700 transition-colors disabled:opacity-60"
-          >
-            {loading ? 'Signing in…' : 'Sign In'}
-          </button>
-        </form>
+            {error && (
+              <div className="bg-[#EA4335]/10 border border-[#EA4335]/20 rounded-lg px-3 py-2.5 text-xs text-[#EA4335]">
+                {error}
+              </div>
+            )}
 
-        <p className="text-center text-sm text-gray-500 mt-6">
-          New patient?{' '}
-          <Link href="/register" className="text-brand-600 font-medium hover:underline">
-            Create account
-          </Link>
-        </p>
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full bg-[#1A73E8] hover:bg-[#1557B0] disabled:opacity-50 text-white font-semibold py-2.5 rounded-lg text-sm transition-colors mt-2"
+            >
+              {loading ? 'Signing in…' : 'Sign In'}
+            </button>
+          </form>
 
-        <div className="mt-6 border-t pt-4">
-          <p className="text-xs text-gray-400 text-center mb-2">Test accounts</p>
-          <div className="grid grid-cols-2 gap-2 text-xs text-gray-500">
-            {[
-              { role: 'Admin',        email: 'admin@test.com' },
-              { role: 'Doctor',       email: 'doctor@test.com' },
-              { role: 'Receptionist', email: 'receptionist@test.com' },
-              { role: 'Patient',      email: 'patient@test.com' },
-            ].map(({ role, email: e }) => (
-              <button
-                key={e}
-                type="button"
-                onClick={() => { setEmail(e); setPassword('password123') }}
-                className="text-left bg-gray-50 hover:bg-brand-50 border border-gray-200 rounded px-2 py-1 transition-colors"
-              >
-                <span className="font-medium text-gray-700">{role}</span>
-                <br />{e}
-              </button>
-            ))}
+          <p className="text-center text-xs text-gray-500 mt-5">
+            New patient?{' '}
+            <Link href="/register" className="text-[#1A73E8] font-medium hover:underline">
+              Create account
+            </Link>
+          </p>
+
+          {/* Test accounts */}
+          <div className="mt-6 border-t border-white/5 pt-5">
+            <p className="text-xs text-gray-600 text-center mb-3">Test accounts</p>
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { role: 'Admin',        email: 'admin@test.com' },
+                { role: 'Doctor',       email: 'doctor@test.com' },
+                { role: 'Receptionist', email: 'receptionist@test.com' },
+                { role: 'Patient',      email: 'patient@test.com' },
+              ].map(({ role, email: e }) => (
+                <button
+                  key={e}
+                  type="button"
+                  onClick={() => { setEmail(e); setPassword('password123') }}
+                  className="text-left bg-[#0D1117] hover:bg-white/5 border border-white/10 rounded-lg px-2.5 py-2 transition-colors"
+                >
+                  <span className="block text-xs font-medium text-gray-300">{role}</span>
+                  <span className="block text-[10px] text-gray-600 truncate">{e}</span>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       </div>

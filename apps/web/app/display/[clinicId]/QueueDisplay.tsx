@@ -19,10 +19,15 @@ export default function QueueDisplay({ clinicId, initial }: { clinicId: string; 
   )
   const [waitingCount, setWaitingCount] = useState(initial.filter((r) => r.status === 'waiting').length)
   const [flash, setFlash] = useState(false)
+  const [connected, setConnected] = useState(true)
 
   useEffect(() => {
     const socket = getSocket()
     socket.emit('subscribe_clinic_queue', clinicId)
+
+    socket.on('connect', () => setConnected(true))
+    socket.on('disconnect', () => setConnected(false))
+    socket.on('connect_error', () => setConnected(false))
 
     socket.on('queue_update', (event: QueueUpdateEvent) => {
       if (event.clinicId !== clinicId) return
@@ -33,13 +38,27 @@ export default function QueueDisplay({ clinicId, initial }: { clinicId: string; 
       setTimeout(() => setFlash(false), 1500)
     })
 
-    return () => { socket.off('queue_update') }
+    return () => {
+      socket.off('queue_update')
+      socket.off('connect')
+      socket.off('disconnect')
+      socket.off('connect_error')
+    }
   }, [clinicId])
 
   const now = new Date()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700 text-white flex flex-col">
+      {!connected && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-[#141B2B] border border-white/10 rounded-2xl px-8 py-6 text-center">
+            <div className="w-3 h-3 rounded-full bg-[#F9AB00] animate-ping mx-auto mb-3" />
+            <p className="text-white font-semibold">Reconnecting…</p>
+            <p className="text-gray-400 text-sm mt-1">Waiting for live connection</p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <header className="p-8 text-center border-b border-blue-600">
         <h1 className="text-4xl font-bold tracking-wide">Queue Display</h1>

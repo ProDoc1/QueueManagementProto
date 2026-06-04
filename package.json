@@ -9,6 +9,7 @@
     "check-types": "turbo run check-types"
   },
   "devDependencies": {
+    "@esbuild/win32-x64": "^0.28.0",
     "prettier": "^3.7.4",
     "turbo": "^2.9.9",
     "typescript": "5.9.2"

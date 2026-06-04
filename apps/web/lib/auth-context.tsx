@@ -1,9 +1,8 @@
 'use client'
 
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { apiRequest } from './api-client'
-
-export type UserRole = 'patient' | 'doctor' | 'receptionist' | 'admin'
+import { createClient } from '@/utils/supabase/client'
+import type { UserRole } from '@repo/types'
 
 export interface AuthUser {
   id: string
@@ -15,7 +14,6 @@ export interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null
-  accessToken: string | null
   loading: boolean
   login: (email: string, password: string) => Promise<AuthUser>
   logout: () => Promise<void>
@@ -25,46 +23,72 @@ const AuthContext = createContext<AuthState | null>(null)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null)
-  const [accessToken, setAccessToken] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+  const supabase = createClient()
 
-  // On mount, check if there's an active session via refresh cookie
   useEffect(() => {
-    async function restore() {
-      try {
-        const res = await apiRequest<{ accessToken: string }>('/api/auth/refresh', { method: 'POST' })
-        setAccessToken(res.accessToken)
-        const me = await apiRequest<AuthUser>('/api/auth/me', { token: res.accessToken })
-        setUser(me)
-      } catch {
-        // No active session — that's fine
-      } finally {
-        setLoading(false)
+    ;(async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (session?.user) {
+        const metadata = session.user.user_metadata ?? {}
+        setUser({
+          id: session.user.id,
+          email: session.user.email ?? '',
+          fullName: metadata.fullName ?? '',
+          role: ((metadata.role as UserRole) || 'patient'),
+          avatarUrl: metadata.avatarUrl ?? null,
+        })
       }
+      setLoading(false)
+    })()
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        const metadata = session.user.user_metadata ?? {}
+        setUser({
+          id: session.user.id,
+          email: session.user.email ?? '',
+          fullName: metadata.fullName ?? '',
+          role: ((metadata.role as UserRole) || 'patient'),
+          avatarUrl: metadata.avatarUrl ?? null,
+        })
+      } else {
+        setUser(null)
+      }
+    })
+
+    return () => {
+      subscription.unsubscribe()
     }
-    restore()
-  }, [])
+  }, [supabase])
 
   const login = useCallback(async (email: string, password: string): Promise<AuthUser> => {
-    const res = await apiRequest<{ user: AuthUser; accessToken: string }>('/api/auth/login', {
-      method: 'POST',
-      body: { email, password },
-    })
-    setAccessToken(res.accessToken)
-    setUser(res.user)
-    return res.user
-  }, [])
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw new Error(error.message)
+    if (!data.user) throw new Error('User not found')
+    const metadata = data.user.user_metadata ?? {}
+    const authUser: AuthUser = {
+      id: data.user.id,
+      email: data.user.email ?? '',
+      fullName: metadata.fullName ?? '',
+      role: ((metadata.role as UserRole) || 'patient'),
+      avatarUrl: metadata.avatarUrl ?? null,
+    }
+    setUser(authUser)
+    return authUser
+  }, [supabase])
 
   const logout = useCallback(async () => {
-    try {
-      await apiRequest('/api/auth/logout', { method: 'POST', token: accessToken ?? undefined })
-    } catch { /* ignore */ }
+    await supabase.auth.signOut()
     setUser(null)
-    setAccessToken(null)
-  }, [accessToken])
+  }, [supabase])
 
   return (
-    <AuthContext.Provider value={{ user, accessToken, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   )

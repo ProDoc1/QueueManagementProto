@@ -29,7 +29,17 @@ export async function createStaffRecord(data: { fullName: string; email: string;
     if (error) throw new Error(error.message)
     revalidatePath('/admin/staff')
     return { id: data.id, fullName: data.full_name, email: data.email, role: 'receptionist' }
+  } else if (role === 'admin') {
+    const { data, error } = await supabase
+      .from('system_admins')
+      .insert([{ full_name: fullName, email }])
+      .select()
+      .single()
+      
+    if (error) throw new Error(error.message)
+    revalidatePath('/admin/staff')
+    return { id: data.id, fullName: data.full_name, email: data.email, role: 'admin' }
   } else {
-    throw new Error('Admin role table not implemented yet in Supabase.')
+    throw new Error('Invalid role specified.')
   }
 }

@@ -13,6 +13,7 @@
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import { createClient } from '@/utils/supabase/client'
 import {
   User, Building2, ShieldCheck, Stethoscope,
   ArrowLeft, Eye, EyeOff, ArrowRight, AlertCircle,
@@ -83,7 +84,7 @@ const ROLES: RoleDef[] = [
     canRegister: false,
     apiRole: 'admin',
     home: '/admin/staff',
-    testEmail: 'admin@test.com',
+    testEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'admin@mediqueue.com',
   },
   {
     key: 'doctor',
@@ -103,6 +104,10 @@ const ROLES: RoleDef[] = [
 ]
 
 // ─── Component ────────────────────────────────────────────────────────────────
+
+// The single System Admin account — only this email is allowed to access the admin portal.
+// Set NEXT_PUBLIC_ADMIN_EMAIL in .env.local to override.
+const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'admin@mediqueue.com').toLowerCase()
 
 export default function LoginPage() {
   const { login } = useAuth()
@@ -135,13 +140,20 @@ export default function LoginPage() {
   }
 
   // ── Login ────────────────────────────────────────────────────
-  // DB: POST /api/auth/login  { email, password }
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedRole) return
     setError(''); setLoading(true)
     try {
+      // Restrict System Admin portal to the one authorised account only
+      if (selectedRole.key === 'admin' && email.trim().toLowerCase() !== ADMIN_EMAIL) {
+        throw new Error('Access denied. Only the authorised System Admin account can sign in here.')
+      }
       const user = await login(email, password)
+      // Verify the signed-in user actually has the expected role
+      if (selectedRole.key === 'admin' && user.role !== 'admin') {
+        throw new Error('This account does not have System Admin privileges.')
+      }
       router.push(selectedRole.home)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed. Check your credentials.')
@@ -150,8 +162,6 @@ export default function LoginPage() {
     }
   }
 
-  // ── Register ─────────────────────────────────────────────────
-  // DB: POST /api/auth/register  { fullName, email, password, role, clinicName? }
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedRole) return
@@ -159,12 +169,32 @@ export default function LoginPage() {
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return }
     setError(''); setLoading(true)
     try {
-      // TODO: call apiRequest('/api/auth/register', { method: 'POST', body: { fullName, email, password, role: selectedRole.apiRole, clinicName } })
-      // For now: simulate success then go to login tab
-      await new Promise((r) => setTimeout(r, 700))
+      const supabase = createClient()
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            fullName,
+            role: selectedRole.apiRole,
+            clinicName: selectedRole.key === 'medical_center' ? clinicName : undefined
+          }
+        }
+      })
+
+      if (signUpError) throw new Error(signUpError.message)
+      
+      // If we are auto-logged in, we can redirect or set tab to login.
+      // Usually signUp without email confirmation logs the user in immediately, 
+      // but if email confirmation is required, we tell them to check email.
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        throw new Error('This email is already registered.')
+      }
+
       setTab('login')
       setPassword(''); setConfirm('')
       setError('')
+      // Optionally we could show a success message here: "Account created! Please sign in."
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed.')
     } finally {

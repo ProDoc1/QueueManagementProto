@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { useAuth } from '@/lib/auth-context'
 import { apiRequest } from '@/lib/api-client'
 import { UserPlus, X, CheckCircle } from 'lucide-react'
+import { createStaffRecord } from './actions'
 
 interface CreatedUser { id: string; fullName: string; email: string; role: string }
 
@@ -31,11 +32,7 @@ export default function AdminStaffPage() {
     setError('')
     setLoading(true)
     try {
-      const user = await apiRequest<CreatedUser>('/api/auth/staff', {
-        method: 'POST',
-        token: accessToken ?? undefined,
-        body: form,
-      })
+      const user = await createStaffRecord(form)
       setCreated((prev) => [user, ...prev])
       setForm((f) => ({ ...f, fullName: '', email: '' }))
       setSaved(true)

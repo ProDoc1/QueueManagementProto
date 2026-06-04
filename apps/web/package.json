@@ -14,6 +14,8 @@
     "@repo/schemas": "^0.1.0",
     "@repo/types": "^0.1.0",
     "@repo/ui": "*",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.107.0",
     "@tanstack/react-query": "^5.100.9",
     "autoprefixer": "^10.5.0",
     "lucide-react": "^1.17.0",

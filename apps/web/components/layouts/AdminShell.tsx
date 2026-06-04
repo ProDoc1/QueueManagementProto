@@ -8,6 +8,8 @@ import {
   LayoutDashboard, Activity, UserPlus, Clock, Building2,
   Bell, ChevronLeft, Settings, MonitorPlay, Calendar,
 } from 'lucide-react'
+import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
+import { useI18n } from '@/lib/i18n'
 
 type NavItem = { id: string; label: string; href: string; icon: React.ComponentType<{ className?: string }> }
 
@@ -21,9 +23,10 @@ const RECEPTIONIST_NAV: NavItem[] = [
 ]
 
 const ADMIN_NAV: NavItem[] = [
-  { id: 'dashboard', label: 'Dashboard',       href: '/admin/staff',    icon: LayoutDashboard },
-  { id: 'staff',     label: 'Create Staff',    href: '/admin/staff',    icon: UserPlus },
-  { id: 'queue',     label: 'Live Queue',      href: '/receptionist/queue', icon: Activity },
+  { id: 'dashboard',   label: 'Dashboard',       href: '/admin/staff',          icon: LayoutDashboard },
+  { id: 'staff',       label: 'Create Staff',    href: '/admin/staff',          icon: UserPlus },
+  { id: 'medi-center', label: 'Medi Center',     href: '/admin/medi-center',    icon: Building2 },
+  { id: 'queue',       label: 'Live Queue',      href: '/receptionist/queue',   icon: Activity },
 ]
 
 const navByRole: Record<string, NavItem[]> = {
@@ -42,6 +45,7 @@ const roleLabel: Record<string, string> = {
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {
   const { user, loading, logout } = useAuth()
+  const { t } = useI18n()
   const router = useRouter()
   const pathname = usePathname()
 
@@ -112,13 +116,13 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             href="/display/clinic"
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
           >
-            <MonitorPlay className="w-3.5 h-3.5" /> Public Display
+            <MonitorPlay className="w-3.5 h-3.5" /> {t('publicDisplay')}
           </Link>
           <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-gray-500 hover:text-gray-300 hover:bg-white/5 transition-colors"
           >
-            <ChevronLeft className="w-3.5 h-3.5" /> Sign Out
+            <ChevronLeft className="w-3.5 h-3.5" /> {t('signOut')}
           </button>
           <div className="flex items-center gap-2 px-3 py-2">
             <div className="w-7 h-7 rounded-full bg-[#34A853] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
@@ -142,6 +146,7 @@ export default function AdminShell({ children }: { children: React.ReactNode }) 
             <p className="text-xs text-gray-500 mt-0.5">MediQueue Clinic</p>
           </div>
           <div className="flex items-center gap-3">
+            <LanguageSwitcher />
             <div className="flex items-center gap-1.5 bg-[#34A853]/15 px-2.5 py-1 rounded-full">
               <span className="w-1.5 h-1.5 rounded-full bg-[#34A853] animate-pulse" />
               <span className="text-xs text-[#34A853] font-medium">Live</span>

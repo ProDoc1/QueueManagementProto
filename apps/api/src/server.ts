@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import Fastify from 'fastify'
+import { swaggerPlugin } from './plugins/swagger.js'
 import { authPlugin } from './plugins/auth.js'
 import { postgresPlugin } from './plugins/postgres.js'
 import { redisPlugin } from './plugins/redis.js'
@@ -15,9 +16,21 @@ import { healthRecordRoutes } from './modules/health-records/records.routes.js'
 import { queueRoutes } from './modules/queue/queue.routes.js'
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
 
-const app = Fastify({ logger: { level: process.env.LOG_LEVEL ?? 'info' } })
+const app = Fastify({
+  logger: { level: process.env.LOG_LEVEL ?? 'info' },
+  ajv: {
+    customOptions: {
+      // Allow OpenAPI keywords (example, description on , etc.) in route schemas
+      keywords: ['example'],
+      strict: false,
+    },
+  },
+})
 
 async function main() {
+  // Swagger must be registered first — before any routes
+  await app.register(swaggerPlugin)
+
   await app.register(corsPlugin)
   await app.register(rateLimitPlugin)
   await app.register(postgresPlugin)
@@ -34,7 +47,14 @@ async function main() {
   await app.register(queueRoutes, { prefix: '/api/queue' })
   await app.register(notificationRoutes, { prefix: '/api/notifications' })
 
-  app.get('/healthz', async () => ({ status: 'ok' }))
+  app.get('/healthz', {
+    schema: {
+      tags: ['Health'],
+      summary: 'Service health check',
+      security: [],   // no auth required
+      response: { 200: { type: 'object', properties: { status: { type: 'string', example: 'ok' } } } },
+    },
+  }, async () => ({ status: 'ok' }))
 
   const port = Number(process.env.PORT ?? 4000)
   await app.listen({ port, host: '0.0.0.0' })

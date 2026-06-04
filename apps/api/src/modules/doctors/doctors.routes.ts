@@ -4,10 +4,55 @@ import { UpdateDoctorSchema, UpdateLocationSchema, BroadcastDelaySchema } from '
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
+const Unauthorized = { 401: { $ref: 'UnauthorizedError#' } }
+const Success = { 200: { $ref: 'SuccessMessage#' } }
+
+const DoctorProfile = {
+  type: 'object',
+  properties: {
+    id:              { type: 'string', format: 'uuid' },
+    fullName:        { type: 'string' },
+    specialization:  { type: 'string' },
+    bio:             { type: 'string', nullable: true },
+    consultationFee: { type: 'number' },
+    slotsPerHour:    { type: 'integer' },
+    isAvailable:     { type: 'boolean' },
+    clinicName:      { type: 'string', nullable: true },
+    latitude:        { type: 'number', nullable: true },
+    longitude:       { type: 'number', nullable: true },
+    isLive:          { type: 'boolean', nullable: true },
+    rating:          { type: 'number', nullable: true },
+  },
+}
 
 export async function doctorRoutes(app: FastifyInstance) {
-  // List doctors with optional filters — cursor-based pagination via full_name
-  app.get('/', async (request) => {
+
+  // ── List doctors ────────────────────────────────────────────────────────────
+  app.get('/', {
+    schema: {
+      tags: ['Doctors'],
+      summary: 'List doctors — filterable, cursor-paginated',
+      security: [],
+      querystring: {
+        type: 'object',
+        properties: {
+          specialization: { type: 'string',  example: 'General Medicine' },
+          available:      { type: 'string',  enum: ['true', 'false'] },
+          after:          { type: 'string',  description: 'Cursor — fullName value from previous page' },
+          limit:          { type: 'integer', default: 20, maximum: 100 },
+        },
+      },
+      response: {
+        200: {
+          type: 'object',
+          properties: {
+            data:       { type: 'array', items: DoctorProfile },
+            nextCursor: { type: 'string', nullable: true },
+          },
+        },
+      },
+    },
+  }, async (request) => {
     const { specialization, available, after, limit: rawLimit } = request.query as Record<string, string>
     const limit = Math.min(parseInt(rawLimit ?? String(DEFAULT_LIMIT), 10), MAX_LIMIT)
 
@@ -26,19 +71,29 @@ export async function doctorRoutes(app: FastifyInstance) {
        JOIN users u ON d.user_id = u.id
        LEFT JOIN doctor_locations dl ON dl.doctor_id = d.id
        WHERE ${conditions.join(' AND ')}
-       ORDER BY u.full_name
-       LIMIT $1`,
+       ORDER BY u.full_name LIMIT $1`,
       params
     )
-
-    return {
-      data: rows,
-      nextCursor: rows.length === limit ? rows[rows.length - 1]?.fullName : null,
-    }
+    return { data: rows, nextCursor: rows.length === limit ? rows[rows.length - 1]?.fullName : null }
   })
 
-  // Get doctor profile
-  app.get('/:id', async (request) => {
+  // ── Doctor profile ──────────────────────────────────────────────────────────
+  app.get('/:id', {
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Get full doctor profile including rating and live location',
+      security: [],
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+      response: {
+        200: DoctorProfile,
+        404: { $ref: 'Error#' },
+      },
+    },
+  }, async (request) => {
     const { id } = request.params as { id: string }
     const { rows: [doctor] } = await app.db.query(
       `SELECT d.id, d.specialization, d.bio, d.consultation_fee AS "consultationFee",
@@ -58,8 +113,25 @@ export async function doctorRoutes(app: FastifyInstance) {
     return doctor
   })
 
-  // Update doctor profile (self)
-  app.put('/me', { preHandler: app.requireRole(['doctor']) }, async (request) => {
+  // ── Update own profile ──────────────────────────────────────────────────────
+  app.put('/me', {
+    preHandler: app.requireRole(['doctor']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Update own doctor profile — Doctor only',
+      body: {
+        type: 'object',
+        properties: {
+          specialization:  { type: 'string' },
+          bio:             { type: 'string' },
+          consultationFee: { type: 'number' },
+          slotsPerHour:    { type: 'integer', minimum: 1, maximum: 10 },
+          workingHours:    { type: 'object',  description: 'JSONB — e.g. {"mon":{"start":"09:00","end":"17:00"}}' },
+        },
+      },
+      response: { ...Success, ...Unauthorized },
+    },
+  }, async (request) => {
     const input = UpdateDoctorSchema.parse(request.body)
     const setClauses: string[] = []
     const params: unknown[] = [request.jwtUser.sub]
@@ -69,15 +141,30 @@ export async function doctorRoutes(app: FastifyInstance) {
     if (input.slotsPerHour !== undefined) { params.push(input.slotsPerHour); setClauses.push(`slots_per_hour = $${params.length}`) }
     if (input.workingHours !== undefined) { params.push(JSON.stringify(input.workingHours)); setClauses.push(`working_hours = $${params.length}`) }
     if (setClauses.length === 0) return { success: true }
-    await app.db.query(
-      `UPDATE doctors SET ${setClauses.join(', ')} WHERE user_id = $1`,
-      params
-    )
+    await app.db.query(`UPDATE doctors SET ${setClauses.join(', ')} WHERE user_id = $1`, params)
     return { success: true }
   })
 
-  // Update doctor location
-  app.put('/me/location', { preHandler: app.requireRole(['doctor']) }, async (request) => {
+  // ── Update live location ────────────────────────────────────────────────────
+  app.put('/me/location', {
+    preHandler: app.requireRole(['doctor']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Update live location — broadcasts doctor_location Socket.IO event',
+      body: {
+        type: 'object',
+        required: ['latitude', 'longitude'],
+        properties: {
+          latitude:  { type: 'number', example: 6.9271 },
+          longitude: { type: 'number', example: 79.8612 },
+          clinicName: { type: 'string', example: 'City Medical Centre' },
+          address:    { type: 'string' },
+          isLive:     { type: 'boolean', default: true },
+        },
+      },
+      response: { ...Success, ...Unauthorized },
+    },
+  }, async (request) => {
     const input = UpdateLocationSchema.parse(request.body)
     await app.db.query(
       `INSERT INTO doctor_locations (id, doctor_id, latitude, longitude, clinic_name, address, is_live, updated_at)
@@ -85,30 +172,51 @@ export async function doctorRoutes(app: FastifyInstance) {
        ON CONFLICT (doctor_id) DO UPDATE SET latitude=$2, longitude=$3, clinic_name=$4, address=$5, is_live=$6, updated_at=NOW()`,
       [uuidv4(), input.latitude, input.longitude, input.clinicName ?? null, input.address ?? null, input.isLive ?? true, request.jwtUser.sub]
     )
-    // Broadcast location to subscribers
     app.io.to(`doctor:${request.jwtUser.sub}`).emit('doctor_location', {
-      doctorId: request.jwtUser.sub,
-      lat: input.latitude,
-      lng: input.longitude,
-      timestamp: new Date().toISOString(),
+      doctorId: request.jwtUser.sub, lat: input.latitude, lng: input.longitude, timestamp: new Date().toISOString(),
     })
     return { success: true }
   })
 
-  // Broadcast delay
-  app.post('/me/delay', { preHandler: app.requireRole(['doctor']) }, async (request) => {
+  // ── Broadcast delay ─────────────────────────────────────────────────────────
+  app.post('/me/delay', {
+    preHandler: app.requireRole(['doctor']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Broadcast a delay notice to all subscribed patients',
+      body: {
+        type: 'object',
+        required: ['delayMinutes'],
+        properties: {
+          delayMinutes: { type: 'integer', minimum: 1, example: 20 },
+          message:      { type: 'string',  example: 'Running 20 minutes late due to an emergency.' },
+        },
+      },
+      response: { ...Success, ...Unauthorized },
+    },
+  }, async (request) => {
     const input = BroadcastDelaySchema.parse(request.body)
     const message = input.message ?? `Dr. is running ${input.delayMinutes} minutes late.`
     app.io.to(`doctor:${request.jwtUser.sub}`).emit('doctor_delay', {
-      doctorId: request.jwtUser.sub,
-      delayMinutes: input.delayMinutes,
-      message,
+      doctorId: request.jwtUser.sub, delayMinutes: input.delayMinutes, message,
     })
     return { success: true }
   })
 
-  // Subscribe to doctor
-  app.post('/:id/subscribe', { preHandler: app.requireRole(['patient']) }, async (request) => {
+  // ── Subscribe ───────────────────────────────────────────────────────────────
+  app.post('/:id/subscribe', {
+    preHandler: app.requireRole(['patient']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Subscribe to a doctor — receive delay/location notifications',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+      response: { ...Success, ...Unauthorized },
+    },
+  }, async (request) => {
     const { id } = request.params as { id: string }
     const { rows: [patient] } = await app.db.query(`SELECT id FROM patients WHERE user_id = $1`, [request.jwtUser.sub])
     await app.db.query(
@@ -118,8 +226,20 @@ export async function doctorRoutes(app: FastifyInstance) {
     return { success: true }
   })
 
-  // Unsubscribe
-  app.delete('/:id/subscribe', { preHandler: app.requireRole(['patient']) }, async (request) => {
+  // ── Unsubscribe ─────────────────────────────────────────────────────────────
+  app.delete('/:id/subscribe', {
+    preHandler: app.requireRole(['patient']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'Unsubscribe from a doctor',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+      response: { ...Success, ...Unauthorized },
+    },
+  }, async (request) => {
     const { id } = request.params as { id: string }
     const { rows: [patient] } = await app.db.query(`SELECT id FROM patients WHERE user_id = $1`, [request.jwtUser.sub])
     await app.db.query(`DELETE FROM doctor_subscriptions WHERE patient_id = $1 AND doctor_id = $2`, [patient.id, id])

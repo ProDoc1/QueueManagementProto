@@ -18,8 +18,15 @@ export const postgresPlugin = fp(async (app: FastifyInstance) => {
     connectionTimeoutMillis: 5_000,
   })
 
-  await pool.query('SELECT 1')
+  // Graceful: warn but don't crash if DB isn't ready yet.
+  // Routes will return 500 on DB calls until connected.
+  try {
+    await pool.query('SELECT 1')
+    app.log.info('PostgreSQL connected')
+  } catch (err) {
+    app.log.warn({ err }, 'PostgreSQL unavailable — server starting without DB. Swagger at /docs is still accessible.')
+  }
+
   app.decorate('db', pool)
   app.addHook('onClose', async () => { await pool.end() })
-  app.log.info('PostgreSQL connected')
 })

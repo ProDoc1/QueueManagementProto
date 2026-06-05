@@ -2,25 +2,18 @@
 
 /**
  * Login page — role-tile selection flow
- *
- * Step 1: User selects their role from 4 tiles
- * Step 2: Login or Register form appears for that role
- *
- * DB: auth handled via /api/auth/login and /api/auth/register (Fastify)
- *     Replace mock credentials with real API calls once DB is live.
+ * Auth calls go to our Fastify API (/api/auth/login, /api/auth/register).
+ * No Supabase Auth used here.
  */
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
-import { createClient } from '@/utils/supabase/client'
 import {
   User, Building2, ShieldCheck, Stethoscope,
   ArrowLeft, Eye, EyeOff, ArrowRight, AlertCircle,
 } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
-
-// ─── Role definitions ─────────────────────────────────────────────────────────
+import { apiRequest } from '@/lib/api-client'
 
 type RoleKey = 'patient' | 'medical_center' | 'admin' | 'doctor'
 
@@ -29,15 +22,15 @@ interface RoleDef {
   label: string
   description: string
   icon: React.ComponentType<{ className?: string }>
-  accent: string          // Tailwind arbitrary value for the highlight colour
-  accentBg: string        // bg class
-  accentText: string      // text class
-  accentBorder: string    // border class
-  accentGlow: string      // shadow style
-  canRegister: boolean    // show Register tab
-  apiRole: string         // maps to DB users.role
-  home: string            // redirect after login
-  testEmail: string       // dev shortcut
+  accent: string
+  accentBg: string
+  accentText: string
+  accentBorder: string
+  accentGlow: string
+  canRegister: boolean
+  apiRole: string
+  home: string
+  testEmail: string
 }
 
 const ROLES: RoleDef[] = [
@@ -84,7 +77,7 @@ const ROLES: RoleDef[] = [
     canRegister: false,
     apiRole: 'admin',
     home: '/admin/staff',
-    testEmail: process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'admin@mediqueue.com',
+    testEmail: 'admin@test.com',
   },
   {
     key: 'doctor',
@@ -103,29 +96,20 @@ const ROLES: RoleDef[] = [
   },
 ]
 
-// ─── Component ────────────────────────────────────────────────────────────────
-
-// The single System Admin account — only this email is allowed to access the admin portal.
-// Set NEXT_PUBLIC_ADMIN_EMAIL in .env.local to override.
-const ADMIN_EMAIL = (process.env.NEXT_PUBLIC_ADMIN_EMAIL ?? 'admin@mediqueue.com').toLowerCase()
-
 export default function LoginPage() {
   const { login } = useAuth()
   const router = useRouter()
 
-  // Step 1 state
   const [selectedRole, setSelectedRole] = useState<RoleDef | null>(null)
-
-  // Step 2 state
-  const [tab, setTab]           = useState<'login' | 'register'>('login')
-  const [email, setEmail]       = useState('')
+  const [tab, setTab] = useState<'login' | 'register'>('login')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
+  const [confirm, setConfirm] = useState('')
   const [fullName, setFullName] = useState('')
-  const [clinicName, setClinicName] = useState('')  // for medical_center registration
-  const [showPw, setShowPw]     = useState(false)
-  const [error, setError]       = useState('')
-  const [loading, setLoading]   = useState(false)
+  const [clinicName, setClinicName] = useState('')
+  const [showPw, setShowPw] = useState(false)
+  const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
   function selectRole(role: RoleDef) {
     setSelectedRole(role)
@@ -139,21 +123,12 @@ export default function LoginPage() {
     setError('')
   }
 
-  // ── Login ────────────────────────────────────────────────────
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     if (!selectedRole) return
     setError(''); setLoading(true)
     try {
-      // Restrict System Admin portal to the one authorised account only
-      if (selectedRole.key === 'admin' && email.trim().toLowerCase() !== ADMIN_EMAIL) {
-        throw new Error('Access denied. Only the authorised System Admin account can sign in here.')
-      }
       const user = await login(email, password)
-      // Verify the signed-in user actually has the expected role
-      if (selectedRole.key === 'admin' && user.role !== 'admin') {
-        throw new Error('This account does not have System Admin privileges.')
-      }
       router.push(selectedRole.home)
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Login failed. Check your credentials.')
@@ -169,32 +144,12 @@ export default function LoginPage() {
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return }
     setError(''); setLoading(true)
     try {
-      const supabase = createClient()
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            fullName,
-            role: selectedRole.apiRole,
-            clinicName: selectedRole.key === 'medical_center' ? clinicName : undefined
-          }
-        }
+      await apiRequest('/api/auth/register', {
+        method: 'POST',
+        body: { fullName, email, password, role: selectedRole.apiRole, clinicName: clinicName || undefined },
       })
-
-      if (signUpError) throw new Error(signUpError.message)
-      
-      // If we are auto-logged in, we can redirect or set tab to login.
-      // Usually signUp without email confirmation logs the user in immediately, 
-      // but if email confirmation is required, we tell them to check email.
-      if (data.user && data.user.identities && data.user.identities.length === 0) {
-        throw new Error('This email is already registered.')
-      }
-
       setTab('login')
       setPassword(''); setConfirm('')
-      setError('')
-      // Optionally we could show a success message here: "Account created! Please sign in."
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Registration failed.')
     } finally {
@@ -202,7 +157,6 @@ export default function LoginPage() {
     }
   }
 
-  // ── Dev shortcut ─────────────────────────────────────────────
   function fillTestAccount() {
     if (!selectedRole) return
     setEmail(selectedRole.testEmail)
@@ -210,13 +164,8 @@ export default function LoginPage() {
     setError('')
   }
 
-  // ─── Render ──────────────────────────────────────────────────
-
   return (
-    <div
-      className="min-h-screen bg-[#0D1117] flex flex-col items-center justify-center p-6"
-      style={{ fontFamily: "'Inter', sans-serif" }}
-    >
+    <div className="min-h-screen bg-[#0D1117] flex flex-col items-center justify-center p-6" style={{ fontFamily: "'Inter', sans-serif" }}>
       {/* Logo */}
       <div className="text-center mb-8">
         <div className="w-12 h-12 rounded-xl bg-[#1A73E8] flex items-center justify-center mx-auto mb-4 shadow-[0_0_30px_rgba(26,115,232,0.25)]">
@@ -228,7 +177,7 @@ export default function LoginPage() {
         </p>
       </div>
 
-      {/* ── Step 1: Role tiles ──────────────────────────────── */}
+      {/* Step 1 — Role tiles */}
       {!selectedRole && (
         <div className="w-full max-w-lg">
           <div className="grid grid-cols-2 gap-3">
@@ -238,31 +187,18 @@ export default function LoginPage() {
                 <button
                   key={role.key}
                   onClick={() => selectRole(role)}
-                  className={`group relative bg-[#141B2B] hover:bg-[#1A2237] border border-white/5 hover:${role.accentBorder} rounded-2xl p-5 text-left transition-all duration-200 hover:scale-[1.02]`}
-                  style={{ '--hover-glow': role.accentGlow } as React.CSSProperties}
+                  className="group relative bg-[#141B2B] hover:bg-[#1A2237] border border-white/5 rounded-2xl p-5 text-left transition-all duration-200 hover:scale-[1.02]"
                 >
-                  {/* Icon */}
                   <div className={`w-11 h-11 rounded-xl ${role.accentBg} flex items-center justify-center mb-4`}>
                     <Icon className={`w-5 h-5 ${role.accentText}`} />
                   </div>
-
-                  {/* Label */}
                   <p className="text-sm font-bold text-white mb-1">{role.label}</p>
-
-                  {/* Description */}
                   <p className="text-xs text-gray-500 leading-relaxed">{role.description}</p>
-
-                  {/* Arrow */}
                   <div className={`mt-4 flex items-center gap-1 ${role.accentText} opacity-0 group-hover:opacity-100 transition-opacity`}>
                     <span className="text-xs font-semibold">Continue</span>
                     <ArrowRight className="w-3.5 h-3.5" />
                   </div>
-
-                  {/* Bottom accent line */}
-                  <div
-                    className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity rounded-full"
-                    style={{ background: role.accent }}
-                  />
+                  <div className="absolute bottom-0 left-4 right-4 h-px opacity-0 group-hover:opacity-100 transition-opacity rounded-full" style={{ background: role.accent }} />
                 </button>
               )
             })}
@@ -270,22 +206,16 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* ── Step 2: Login / Register form ──────────────────── */}
+      {/* Step 2 — Login / Register form */}
       {selectedRole && (() => {
         const role = selectedRole
         const Icon = role.icon
         return (
           <div className="w-full max-w-md">
-            <div
-              className="bg-[#141B2B] rounded-2xl border border-white/5 overflow-hidden"
-              style={{ boxShadow: role.accentGlow }}
-            >
+            <div className="bg-[#141B2B] rounded-2xl border border-white/5 overflow-hidden" style={{ boxShadow: role.accentGlow }}>
               {/* Role header */}
               <div className={`flex items-center gap-3 px-6 py-4 border-b border-white/5 ${role.accentBg}`}>
-                <button
-                  onClick={goBack}
-                  className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors flex-shrink-0"
-                >
+                <button onClick={goBack} className="w-7 h-7 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors flex-shrink-0">
                   <ArrowLeft className="w-3.5 h-3.5" />
                 </button>
                 <div className={`w-8 h-8 rounded-lg ${role.accentBg} border ${role.accentBorder} flex items-center justify-center flex-shrink-0`}>
@@ -293,25 +223,17 @@ export default function LoginPage() {
                 </div>
                 <div>
                   <p className="text-sm font-bold text-white">{role.label}</p>
-                  <p className="text-[10px] text-gray-400">
-                    {tab === 'login' ? 'Sign in to your account' : 'Create a new account'}
-                  </p>
+                  <p className="text-[10px] text-gray-400">{tab === 'login' ? 'Sign in to your account' : 'Create a new account'}</p>
                 </div>
               </div>
 
               <div className="p-6">
-                {/* Tabs (only for roles that can register) */}
+                {/* Tabs */}
                 {role.canRegister && (
                   <div className="flex gap-1 bg-[#0D1117] p-1 rounded-lg mb-5">
                     {(['login', 'register'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={() => { setTab(t); setError('') }}
-                        className={`flex-1 py-2 rounded-md text-xs font-semibold transition-colors ${
-                          tab === t
-                            ? `text-white`
-                            : 'text-gray-500 hover:text-gray-300'
-                        }`}
+                      <button key={t} onClick={() => { setTab(t); setError('') }}
+                        className={`flex-1 py-2 rounded-md text-xs font-semibold transition-colors ${tab === t ? 'text-white' : 'text-gray-500 hover:text-gray-300'}`}
                         style={tab === t ? { background: role.accent } : {}}
                       >
                         {t === 'login' ? 'Sign In' : 'Register'}
@@ -320,127 +242,103 @@ export default function LoginPage() {
                   </div>
                 )}
 
-                {/* ── Login form ── */}
+                {/* Login form */}
                 {tab === 'login' && (
                   <form onSubmit={handleLogin} className="space-y-4">
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Email</label>
-                      <input
-                        type="email" required
-                        value={email} onChange={(e) => setEmail(e.target.value)}
-                        placeholder={`you@${role.key === 'medical_center' ? 'clinic' : 'example'}.com`}
-                        className={inputCls(role.accent)}
+                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
+                        placeholder="you@example.com"
+                        className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Password</label>
                       <div className="relative">
-                        <input
-                          type={showPw ? 'text' : 'password'} required
-                          value={password} onChange={(e) => setPassword(e.target.value)}
+                        <input type={showPw ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)}
                           placeholder="••••••••"
-                          className={`${inputCls(role.accent)} pr-10`}
+                          className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 pr-10 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                         />
-                        <button type="button" onClick={() => setShowPw(!showPw)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                        >
+                        <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
                           {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
-
-                    {error && <ErrorBanner message={error} />}
-
-                    <button
-                      type="submit" disabled={loading}
+                    {error && (
+                      <div className="flex items-start gap-2 bg-[#EA4335]/10 border border-[#EA4335]/20 rounded-lg px-3 py-2.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-[#EA4335] flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-[#EA4335]">{error}</p>
+                      </div>
+                    )}
+                    <button type="submit" disabled={loading}
                       className="w-full disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-all mt-1"
                       style={{ background: role.accent }}
                     >
                       {loading ? 'Signing in…' : `Sign In as ${role.label}`}
                     </button>
-
-                    {/* Dev test account shortcut */}
-                    <button
-                      type="button" onClick={fillTestAccount}
-                      className="w-full text-xs text-gray-600 hover:text-gray-400 transition-colors py-1"
-                    >
+                    <button type="button" onClick={fillTestAccount} className="w-full text-xs text-gray-600 hover:text-gray-400 transition-colors py-1">
                       Use test account ({role.testEmail})
                     </button>
                   </form>
                 )}
 
-                {/* ── Register form ── */}
+                {/* Register form */}
                 {tab === 'register' && (
                   <form onSubmit={handleRegister} className="space-y-4">
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Full Name</label>
-                      <input
-                        type="text" required
-                        value={fullName} onChange={(e) => setFullName(e.target.value)}
+                      <input type="text" required value={fullName} onChange={(e) => setFullName(e.target.value)}
                         placeholder="Your full name"
-                        className={inputCls(role.accent)}
+                        className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
-
-                    {/* Extra field for Medical Center */}
                     {role.key === 'medical_center' && (
                       <div>
                         <label className="text-xs text-gray-400 mb-1.5 block">Clinic / Medical Center Name</label>
-                        {/* DB: clinics.name — created alongside the user on registration */}
-                        <input
-                          type="text" required
-                          value={clinicName} onChange={(e) => setClinicName(e.target.value)}
+                        <input type="text" required value={clinicName} onChange={(e) => setClinicName(e.target.value)}
                           placeholder="e.g. City Medical Centre"
-                          className={inputCls(role.accent)}
+                          className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                         />
                       </div>
                     )}
-
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Email</label>
-                      <input
-                        type="email" required
-                        value={email} onChange={(e) => setEmail(e.target.value)}
+                      <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@example.com"
-                        className={inputCls(role.accent)}
+                        className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Password</label>
                       <div className="relative">
-                        <input
-                          type={showPw ? 'text' : 'password'} required
-                          value={password} onChange={(e) => setPassword(e.target.value)}
+                        <input type={showPw ? 'text' : 'password'} required value={password} onChange={(e) => setPassword(e.target.value)}
                           placeholder="Min. 8 characters"
-                          className={`${inputCls(role.accent)} pr-10`}
+                          className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 pr-10 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                         />
-                        <button type="button" onClick={() => setShowPw(!showPw)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300 transition-colors"
-                        >
+                        <button type="button" onClick={() => setShowPw(!showPw)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-300">
                           {showPw ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                         </button>
                       </div>
                     </div>
                     <div>
                       <label className="text-xs text-gray-400 mb-1.5 block">Confirm Password</label>
-                      <input
-                        type="password" required
-                        value={confirm} onChange={(e) => setConfirm(e.target.value)}
+                      <input type="password" required value={confirm} onChange={(e) => setConfirm(e.target.value)}
                         placeholder="Repeat password"
-                        className={inputCls(role.accent)}
+                        className="w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg px-3 py-2.5 placeholder-gray-600 outline-none focus:border-white/20 transition-colors"
                       />
                     </div>
-
-                    {error && <ErrorBanner message={error} />}
-
-                    <button
-                      type="submit" disabled={loading}
+                    {error && (
+                      <div className="flex items-start gap-2 bg-[#EA4335]/10 border border-[#EA4335]/20 rounded-lg px-3 py-2.5">
+                        <AlertCircle className="w-3.5 h-3.5 text-[#EA4335] flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-[#EA4335]">{error}</p>
+                      </div>
+                    )}
+                    <button type="submit" disabled={loading}
                       className="w-full disabled:opacity-50 text-white font-bold py-2.5 rounded-lg text-sm transition-all mt-1"
                       style={{ background: role.accent }}
                     >
                       {loading ? 'Creating account…' : `Create ${role.label} Account`}
                     </button>
-
                     {role.key === 'medical_center' && (
                       <p className="text-[10px] text-gray-600 text-center leading-relaxed">
                         Registration documents can be submitted from your Medi Center profile after sign-in.
@@ -451,7 +349,6 @@ export default function LoginPage() {
               </div>
             </div>
 
-            {/* "Back to role selection" hint */}
             <p className="text-center text-xs text-gray-600 mt-4">
               Not a {role.label}?{' '}
               <button onClick={goBack} className="text-gray-400 hover:text-white transition-colors font-medium">
@@ -461,25 +358,6 @@ export default function LoginPage() {
           </div>
         )
       })()}
-    </div>
-  )
-}
-
-// ─── Small helpers ────────────────────────────────────────────────────────────
-
-function inputCls(accent: string) {
-  return [
-    'w-full bg-[#0D1117] border border-white/10 text-white text-sm rounded-lg',
-    'px-3 py-2.5 placeholder-gray-600 outline-none transition-colors',
-    `focus:border-[${accent}]/50`,
-  ].join(' ')
-}
-
-function ErrorBanner({ message }: { message: string }) {
-  return (
-    <div className="flex items-start gap-2 bg-[#EA4335]/10 border border-[#EA4335]/20 rounded-lg px-3 py-2.5">
-      <AlertCircle className="w-3.5 h-3.5 text-[#EA4335] flex-shrink-0 mt-0.5" />
-      <p className="text-xs text-[#EA4335]">{message}</p>
     </div>
   )
 }

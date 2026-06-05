@@ -4,13 +4,14 @@ import { v4 as uuidv4 } from 'uuid'
 import type { RegisterInput, StaffRegisterInput, LoginInput } from '@repo/schemas'
 import type { User } from '@repo/types'
 
-// Roles that can self-register. Doctors/receptionists must be created by admin.
-const SELF_REGISTER_ROLES = ['patient'] as const
+// Roles that can self-register.
+// receptionist = Medical Center staff who register their own clinic account.
+const SELF_REGISTER_ROLES = ['patient', 'receptionist'] as const
 
 export async function registerUser(app: FastifyInstance, input: RegisterInput): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   if (!SELF_REGISTER_ROLES.includes(input.role as typeof SELF_REGISTER_ROLES[number])) {
     throw Object.assign(
-      new Error('Doctors and receptionists must be created by an administrator'),
+      new Error('Only patients and medical centers can self-register. Doctor accounts must be created by an administrator.'),
       { statusCode: 403 }
     )
   }

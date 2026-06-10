@@ -5,6 +5,7 @@ import { createClient, type RedisClientType } from 'redis'
 declare module 'fastify' {
   interface FastifyInstance {
     redis: RedisClientType
+    redisAvailable: boolean
   }
 }
 
@@ -24,9 +25,11 @@ export const redisPlugin = fp(async (app: FastifyInstance) => {
         setTimeout(() => reject(new Error('Redis connect timeout')), 2500)
       ),
     ])
+    app.decorate('redisAvailable', true)
     app.log.info('Redis connected')
   } catch (err) {
     app.log.warn({ err }, 'Redis unavailable — server starting without cache')
+    app.decorate('redisAvailable', false)
     try { client.destroy() } catch { /* ignore */ }
   }
 

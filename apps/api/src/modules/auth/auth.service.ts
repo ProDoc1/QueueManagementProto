@@ -98,6 +98,7 @@ export async function loginUser(app: FastifyInstance, input: LoginInput): Promis
  * Issues access + refresh tokens.
  * Each token has a unique jti so multiple devices can hold independent sessions.
  * Stored as refresh:{userId}:{jti} → hash to support per-session revocation.
+ * When Redis is unavailable, tokens are still issued but session revocation is skipped.
  */
 async function issueTokens(app: FastifyInstance, user: User) {
   const jti = uuidv4()
@@ -111,14 +112,22 @@ async function issueTokens(app: FastifyInstance, user: User) {
     { expiresIn: '7d' }
   )
 
-  // SHA-256 is sufficient for high-entropy JWTs; bcrypt(8) is unnecessarily slow here
-  const hash = await bcrypt.hash(refreshToken, 8)
-  const sessionKey = `refresh:${user.id}:${jti}`
-  const sessionSetKey = `refresh_sessions:${user.id}`
+  if (app.redisAvailable) {
+    // SHA-256 is sufficient for high-entropy JWTs; bcrypt(8) is unnecessarily slow here
+    const hash = await bcrypt.hash(refreshToken, 8)
+    const sessionKey = `refresh:${user.id}:${jti}`
+    const sessionSetKey = `refresh_sessions:${user.id}`
 
-  await app.redis.setEx(sessionKey, 7 * 24 * 3600, hash)
-  await app.redis.sAdd(sessionSetKey, jti)
-  await app.redis.expire(sessionSetKey, 7 * 24 * 3600)
+    try {
+      await app.redis.setEx(sessionKey, 7 * 24 * 3600, hash)
+      await app.redis.sAdd(sessionSetKey, jti)
+      await app.redis.expire(sessionSetKey, 7 * 24 * 3600)
+    } catch (err) {
+      app.log.warn({ err }, 'Redis write failed during token issue — session not stored')
+    }
+  } else {
+    app.log.warn('Redis unavailable — refresh token issued without server-side session storage')
+  }
 
   return { accessToken, refreshToken }
 }
@@ -133,16 +142,22 @@ export async function refreshTokens(app: FastifyInstance, refreshToken: string):
 
   if (payload.type !== 'refresh') throw Object.assign(new Error('Invalid token type'), { statusCode: 401 })
 
-  const sessionKey = `refresh:${payload.sub}:${payload.jti}`
-  const stored = await app.redis.get(sessionKey)
-  if (!stored) throw Object.assign(new Error('Session expired or already used'), { statusCode: 401 })
+  // When Redis is available, validate and rotate the stored session
+  if (app.redisAvailable) {
+    const sessionKey = `refresh:${payload.sub}:${payload.jti}`
+    const stored = await app.redis.get(sessionKey).catch(() => null)
+    if (!stored) throw Object.assign(new Error('Session expired or already used'), { statusCode: 401 })
 
-  const valid = await bcrypt.compare(refreshToken, stored)
-  if (!valid) throw Object.assign(new Error('Token reuse detected — all sessions revoked'), { statusCode: 401 })
+    const valid = await bcrypt.compare(refreshToken, stored)
+    if (!valid) throw Object.assign(new Error('Token reuse detected — all sessions revoked'), { statusCode: 401 })
 
-  // Revoke old token before issuing new one (rotation)
-  await app.redis.del(sessionKey)
-  await app.redis.sRem(`refresh_sessions:${payload.sub}`, payload.jti)
+    // Revoke old token before issuing new one (rotation)
+    await app.redis.del(sessionKey).catch(() => {})
+    await app.redis.sRem(`refresh_sessions:${payload.sub}`, payload.jti).catch(() => {})
+  } else {
+    // Without Redis, rely on JWT signature + expiry only
+    app.log.warn('Redis unavailable — refresh token validated by JWT signature only (no server-side revocation)')
+  }
 
   const { rows } = await app.db.query<User>(
     `SELECT id, email, role FROM users WHERE id = $1 AND is_active = true`,
@@ -155,16 +170,17 @@ export async function refreshTokens(app: FastifyInstance, refreshToken: string):
 }
 
 export async function logoutUser(app: FastifyInstance, userId: string, jti?: string) {
+  if (!app.redisAvailable) return  // nothing to revoke without Redis
   if (jti) {
     // Logout current session only
-    await app.redis.del(`refresh:${userId}:${jti}`)
-    await app.redis.sRem(`refresh_sessions:${userId}`, jti)
+    await app.redis.del(`refresh:${userId}:${jti}`).catch(() => {})
+    await app.redis.sRem(`refresh_sessions:${userId}`, jti).catch(() => {})
   } else {
     // Logout all sessions (e.g. "sign out everywhere")
-    const jtis = await app.redis.sMembers(`refresh_sessions:${userId}`)
+    const jtis = await app.redis.sMembers(`refresh_sessions:${userId}`).catch(() => [] as string[])
     if (jtis.length > 0) {
-      await app.redis.del(jtis.map((j) => `refresh:${userId}:${j}`))
+      await app.redis.del(jtis.map((j) => `refresh:${userId}:${j}`)).catch(() => {})
     }
-    await app.redis.del(`refresh_sessions:${userId}`)
+    await app.redis.del(`refresh_sessions:${userId}`).catch(() => {})
   }
 }

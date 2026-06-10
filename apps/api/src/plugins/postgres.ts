@@ -16,6 +16,7 @@ export const postgresPlugin = fp(async (app: FastifyInstance) => {
     max: 20,
     idleTimeoutMillis: 30_000,
     connectionTimeoutMillis: 5_000,
+    ssl: process.env.DATABASE_URL?.includes('supabase') ? { rejectUnauthorized: false } : undefined,
   })
 
   // Graceful: warn but don't crash if DB isn't ready yet.

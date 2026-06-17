@@ -21,7 +21,27 @@ const DoctorProfile = {
     latitude:        { type: 'number', nullable: true },
     longitude:       { type: 'number', nullable: true },
     isLive:          { type: 'boolean', nullable: true },
+    isLive:          { type: 'boolean', nullable: true },
     rating:          { type: 'number', nullable: true },
+  },
+}
+
+const AdminDoctorProfile = {
+  type: 'object',
+  properties: {
+    id:             { type: 'string', format: 'uuid' },
+    userId:         { type: 'string', format: 'uuid' },
+    fullName:       { type: 'string' },
+    email:          { type: 'string' },
+    specialization: { type: 'string' },
+    licenseNumber:  { type: 'string' },
+    isAvailable:    { type: 'boolean' },
+    isActive:       { type: 'boolean' },
+    createdAt:      { type: 'string' },
+    clinics: {
+      type: 'array',
+      items: { type: 'string' },
+    },
   },
 }
 
@@ -75,6 +95,33 @@ export async function doctorRoutes(app: FastifyInstance) {
       params
     )
     return { data: rows, nextCursor: rows.length === limit ? rows[rows.length - 1]?.fullName : null }
+  })
+
+  // ── System-Wide Admin Directory ──────────────────────────────────────────────
+  app.get('/directory', {
+    preHandler: app.requireRole(['admin']),
+    schema: {
+      tags: ['Doctors'],
+      summary: 'System-Wide Doctor Directory for Admins',
+      response: {
+        200: { type: 'array', items: AdminDoctorProfile },
+        ...Unauthorized,
+      },
+    },
+  }, async () => {
+    const { rows } = await app.db.query(
+      `SELECT d.id, d.user_id AS "userId", COALESCE(d.specialization, 'General') AS "specialization", COALESCE(d.license_number, 'Pending') AS "licenseNumber",
+              d.is_available AS "isAvailable", d.created_at AS "createdAt",
+              u.full_name AS "fullName", u.email, u.is_active AS "isActive",
+              COALESCE(
+                (SELECT json_agg(c.name) FROM doctor_clinics dc JOIN clinics c ON dc.clinic_id = c.id WHERE dc.doctor_id = d.id),
+                '[]'
+              ) AS clinics
+       FROM doctors d
+       JOIN users u ON d.user_id = u.id
+       ORDER BY u.full_name`
+    )
+    return rows
   })
 
   // ── Doctor profile ──────────────────────────────────────────────────────────

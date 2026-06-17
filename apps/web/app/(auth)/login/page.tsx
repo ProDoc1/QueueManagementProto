@@ -77,7 +77,7 @@ const ROLES: RoleDef[] = [
     canRegister: false,
     apiRole: 'admin',
     home: '/admin/staff',
-    testEmail: 'admin@test.com',
+    testEmail: 'admin@mediqueue.com',
   },
   {
     key: 'doctor',

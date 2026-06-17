@@ -15,6 +15,7 @@ import { patientRoutes } from './modules/patients/patients.routes.js'
 import { healthRecordRoutes } from './modules/health-records/records.routes.js'
 import { queueRoutes } from './modules/queue/queue.routes.js'
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
+import { clinicRoutes } from './modules/clinics/clinics.routes.js'
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? 'info' },
@@ -46,6 +47,7 @@ async function main() {
   await app.register(healthRecordRoutes, { prefix: '/api/health-records' })
   await app.register(queueRoutes, { prefix: '/api/queue' })
   await app.register(notificationRoutes, { prefix: '/api/notifications' })
+  await app.register(clinicRoutes, { prefix: '/api/clinics' })
 
   app.get('/healthz', {
     schema: {

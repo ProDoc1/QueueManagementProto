@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth, type UserRole } from '@/lib/auth-context'
 import {
   LayoutDashboard, Activity, UserPlus, Clock, Building2,
-  Bell, ChevronLeft, Settings, MonitorPlay, Calendar,
+  Bell, ChevronLeft, Settings, MonitorPlay, Calendar, Stethoscope,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
 import { useI18n } from '@/lib/i18n'
@@ -25,8 +25,9 @@ const RECEPTIONIST_NAV: NavItem[] = [
 const ADMIN_NAV: NavItem[] = [
   { id: 'dashboard',   label: 'Dashboard',       href: '/admin/staff',          icon: LayoutDashboard },
   { id: 'staff',       label: 'Create Staff',    href: '/admin/staff',          icon: UserPlus },
-  { id: 'medi-center', label: 'Medi Center',     href: '/admin/medi-center',    icon: Building2 },
-  { id: 'queue',       label: 'Live Queue',      href: '/receptionist/queue',   icon: Activity },
+  { id: 'medi-center', label: 'Medical Centers', href: '/admin/medi-center',    icon: Building2 },
+  { id: 'doctors',     label: 'Doctor Directory',href: '/admin/doctors',        icon: Stethoscope },
+  { id: 'queue',       label: 'Global Monitor',  href: '/admin/queue',          icon: Activity },
 ]
 
 const navByRole: Record<string, NavItem[]> = {

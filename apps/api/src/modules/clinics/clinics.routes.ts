@@ -6,13 +6,13 @@ const ClinicBody = {
   type: 'object',
   required: ['name'],
   properties: {
-    name:     { type: 'string',  example: 'City Medical Centre' },
-    address:  { type: 'string',  example: '42 Hospital Road, Colombo' },
-    phone:    { type: 'string',  example: '+94112345678' },
-    timezone: { type: 'string',  example: 'Asia/Colombo' },
+    name:      { type: 'string',  example: 'City Medical Centre' },
+    address:   { type: 'string',  example: '42 Hospital Road, Colombo' },
+    phone:     { type: 'string',  example: '+94112345678' },
+    timezone:  { type: 'string',  example: 'Asia/Colombo' },
     latitude:  { type: 'number', example: 6.9271 },
     longitude: { type: 'number', example: 79.8612 },
-    status:   { type: 'string',  enum: ['pending', 'active', 'suspended'], example: 'active' },
+    status:    { type: 'string',  enum: ['pending', 'active', 'suspended'], example: 'active' },
   },
 }
 
@@ -35,7 +35,8 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── List all clinics ─────────────────────────────────────────────────────────
   app.get('/', {
-    preHandler: app.requireRole(['admin', 'doctor', 'receptionist']),
+    // ✅ Added system_admin to reading list
+    preHandler: app.requireRole(['admin', 'doctor', 'receptionist', 'system_admin']),
     schema: {
       tags: ['Clinics'],
       summary: 'List all clinics',
@@ -74,7 +75,8 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Get single clinic ────────────────────────────────────────────────────────
   app.get('/:id', {
-    preHandler: app.requireRole(['admin', 'doctor', 'receptionist']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'doctor', 'receptionist', 'system_admin']),
     schema: {
       tags: ['Clinics'],
       summary: 'Get clinic by ID',
@@ -102,10 +104,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Create clinic ────────────────────────────────────────────────────────────
   app.post('/', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin to allow creating new medical centers
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Create (onboard) a new medical center — Admin only',
+      summary: 'Create (onboard) a new medical center — Admin & System Admin only',
       body: ClinicBody,
       response: {
         201: { description: 'Clinic created', ...ClinicResponse },
@@ -129,10 +132,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Update clinic ────────────────────────────────────────────────────────────
   app.put('/:id', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Update clinic details or change status — Admin only',
+      summary: 'Update clinic details or change status',
       params: {
         type: 'object',
         required: ['id'],
@@ -154,13 +158,13 @@ export async function clinicRoutes(app: FastifyInstance) {
 
     const { rows } = await app.db.query(
       `UPDATE clinics SET
-         name = COALESCE($1, name),
-         address = COALESCE($2, address),
-         phone = COALESCE($3, phone),
-         timezone = COALESCE($4, timezone),
-         latitude = COALESCE($5, latitude),
-         longitude = COALESCE($6, longitude),
-         status = COALESCE($7, status)
+          name = COALESCE($1, name),
+          address = COALESCE($2, address),
+          phone = COALESCE($3, phone),
+          timezone = COALESCE($4, timezone),
+          latitude = COALESCE($5, latitude),
+          longitude = COALESCE($6, longitude),
+          status = COALESCE($7, status)
        WHERE id = $8
        RETURNING id, name, address, phone, timezone, latitude, longitude, status, created_at AS "createdAt"`,
       [name ?? null, address ?? null, phone ?? null, timezone ?? null, latitude ?? null, longitude ?? null, status ?? null, id]
@@ -171,10 +175,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Approve / change status ──────────────────────────────────────────────────
   app.patch('/:id/status', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Approve, suspend, or reset a clinic status — Admin only',
+      summary: 'Approve, suspend, or reset a clinic status',
       params: {
         type: 'object',
         required: ['id'],
@@ -206,10 +211,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Delete clinic ────────────────────────────────────────────────────────────
   app.delete('/:id', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Delete a clinic — Admin only',
+      summary: 'Delete a clinic',
       params: {
         type: 'object',
         required: ['id'],
@@ -230,7 +236,8 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── List doctors assigned to a clinic ───────────────────────────────────────
   app.get('/:id/doctors', {
-    preHandler: app.requireRole(['admin', 'receptionist']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'receptionist', 'system_admin']),
     schema: {
       tags: ['Clinics'],
       summary: 'List doctors assigned to this clinic',
@@ -273,10 +280,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Assign doctor to clinic ──────────────────────────────────────────────────
   app.post('/:id/doctors', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Assign a doctor to this clinic — Admin only',
+      summary: 'Assign a doctor to this clinic',
       params: {
         type: 'object',
         required: ['id'],
@@ -306,10 +314,11 @@ export async function clinicRoutes(app: FastifyInstance) {
 
   // ── Remove doctor from clinic ────────────────────────────────────────────────
   app.delete('/:id/doctors/:doctorId', {
-    preHandler: app.requireRole(['admin']),
+    // ✅ Added system_admin
+    preHandler: app.requireRole(['admin', 'system_admin']),
     schema: {
       tags: ['Clinics'],
-      summary: 'Remove a doctor from this clinic — Admin only',
+      summary: 'Remove a doctor from this clinic',
       params: {
         type: 'object',
         required: ['id', 'doctorId'],

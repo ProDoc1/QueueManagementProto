@@ -30,6 +30,17 @@ export const authPlugin = fp(async (app: FastifyInstance) => {
     try {
       await request.jwtVerify()
       request.jwtUser = request.user as JwtPayload
+
+      // Check if user is banned
+      const isBanned = await app.db.query(
+        `SELECT 1 FROM account_bans
+         WHERE user_id = $1 AND (is_permanent = true OR expires_at > NOW())`,
+        [request.jwtUser.sub]
+      )
+
+      if (isBanned.rows.length > 0) {
+        return reply.code(403).send({ error: 'Account has been suspended' })
+      }
     } catch {
       reply.code(401).send({ error: 'Unauthorized' })
     }
@@ -40,6 +51,18 @@ export const authPlugin = fp(async (app: FastifyInstance) => {
       try {
         await request.jwtVerify()
         request.jwtUser = request.user as JwtPayload
+
+        // Check if user is banned
+        const isBanned = await app.db.query(
+          `SELECT 1 FROM account_bans
+           WHERE user_id = $1 AND (is_permanent = true OR expires_at > NOW())`,
+          [request.jwtUser.sub]
+        )
+
+        if (isBanned.rows.length > 0) {
+          return reply.code(403).send({ error: 'Account has been suspended' })
+        }
+
         if (!roles.includes(request.jwtUser.role)) {
           reply.code(403).send({ error: 'Forbidden' })
         }

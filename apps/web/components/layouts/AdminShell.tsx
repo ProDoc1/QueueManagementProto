@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { useAuth, type UserRole } from '@/lib/auth-context'
 import {
   LayoutDashboard, Activity, UserPlus, Clock, Building2,
-  Bell, ChevronLeft, Settings, MonitorPlay, Calendar, Stethoscope,
+  Bell, ChevronLeft, Settings, MonitorPlay, Calendar, Stethoscope, ShieldAlert, BarChart3, Lock,
 } from 'lucide-react'
 import LanguageSwitcher from '@/components/ui/LanguageSwitcher'
 import { useI18n } from '@/lib/i18n'
@@ -30,18 +30,28 @@ const ADMIN_NAV: NavItem[] = [
   { id: 'queue',       label: 'Global Monitor',  href: '/admin/queue',          icon: Activity },
 ]
 
+const SYSTEM_ADMIN_NAV: NavItem[] = [
+  { id: 'queue',       label: 'Global Monitor',     href: '/admin/queue',            icon: Activity }, // Keeps working path
+  { id: 'accounts',    label: 'Account Management', href: '/system-admin/accounts',  icon: ShieldAlert },
+  { id: 'roles',       label: 'Role Management',    href: '/system-admin/roles',     icon: Lock },
+  { id: 'staff',       label: 'Create Staff',       href: '/admin/staff',            icon: UserPlus },
+  { id: 'medi-center', label: 'Medical Centers',    href: '/admin/medi-center',            icon: Building2 },
+]
+
 const navByRole: Record<string, NavItem[]> = {
   doctor:       DOCTOR_NAV,
   receptionist: RECEPTIONIST_NAV,
   admin:        ADMIN_NAV,
+  system_admin: SYSTEM_ADMIN_NAV,
 }
 
-const allowedRoles: UserRole[] = ['doctor', 'receptionist', 'admin']
+const allowedRoles: UserRole[] = ['doctor', 'receptionist', 'admin', 'system_admin']
 
 const roleLabel: Record<string, string> = {
   doctor:       'Doctor Portal',
   receptionist: 'Receptionist',
   admin:        'Admin Panel',
+  system_admin: 'System Admin',
 }
 
 export default function AdminShell({ children }: { children: React.ReactNode }) {

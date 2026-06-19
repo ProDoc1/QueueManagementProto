@@ -74,7 +74,9 @@ export async function authRoutes(app: FastifyInstance) {
     },
   }, async (request, reply) => {
     const input = LoginSchema.parse(request.body)
-    const result = await loginUser(app, input)
+    const ipAddress = request.ip
+    const userAgent = request.headers['user-agent']
+    const result = await loginUser(app, input, ipAddress, userAgent)
     reply.setCookie('refreshToken', result.refreshToken, COOKIE_OPTS(app))
     return { user: result.user, accessToken: result.accessToken }
   })
@@ -162,7 +164,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post('/staff', {
-    preHandler: app.requireRole(['admin']),
+    preHandler: app.requireRole(['admin','system_admin']),
     schema: {
       tags: ['Auth'],
       summary: 'Create a staff account (doctor or receptionist) — Admin only',
@@ -185,5 +187,164 @@ export async function authRoutes(app: FastifyInstance) {
     const input = StaffRegisterSchema.parse(request.body)
     const user = await createStaffUser(app, input)
     return reply.code(201).send(user)
+  })
+
+  // ── Role Management (System Admin only) ──────────────────────────────────────
+
+  app.put('/users/:id/role', {
+    preHandler: app.requireRole(['system_admin']),
+    schema: {
+      tags: ['Auth'],
+      summary: 'Update a user\'s role — System Admin only',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+      body: {
+        type: 'object',
+        required: ['role'],
+        properties: {
+          role: {
+            type: 'string',
+            enum: ['patient', 'doctor', 'receptionist', 'admin', 'system_admin'],
+          },
+        },
+      },
+      response: {
+        200: { $ref: 'SuccessMessage#' },
+        400: { $ref: 'Error#' },
+        404: { $ref: 'Error#' },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { role } = request.body as { role: string }
+
+    const allowedRoles = ['patient', 'doctor', 'receptionist', 'admin', 'system_admin']
+    if (!allowedRoles.includes(role)) {
+      return reply.code(400).send({ error: 'Invalid role assignment' })
+    }
+
+    const { rowCount } = await app.db.query(
+      `UPDATE users SET role = $1, updated_at = NOW() WHERE id = $2`,
+      [role, id]
+    )
+
+    if (!rowCount || rowCount === 0) {
+      return reply.code(404).send({ error: 'User not found' })
+    }
+
+    return { success: true }
+  })
+
+  // ── List All Users (System Admin only) ───────────────────────────────────────
+
+  app.get('/users', {
+    preHandler: app.requireRole(['system_admin']),
+    schema: {
+      tags: ['Auth'],
+      summary: 'List all platform users — System Admin only',
+      querystring: {
+        type: 'object',
+        properties: {
+          search: { type: 'string' },
+          role:   { type: 'string' },
+          status: { type: 'string', enum: ['active', 'suspended', 'all'] },
+        },
+      },
+      response: {
+        200: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              id:        { type: 'string' },
+              fullName:  { type: 'string' },
+              email:     { type: 'string' },
+              role:      { type: 'string' },
+              isActive:  { type: 'boolean' },
+              createdAt: { type: 'string' },
+            },
+          },
+        },
+        ...Unauthorized,
+      },
+    },
+  }, async (request) => {
+    const { search, role, status } = request.query as { search?: string; role?: string; status?: string }
+
+    const conditions: string[] = []
+    const params: unknown[] = []
+
+    if (search) {
+      params.push(`%${search}%`)
+      conditions.push(`(full_name ILIKE $${params.length} OR email ILIKE $${params.length})`)
+    }
+    if (role) {
+      params.push(role)
+      conditions.push(`role = $${params.length}`)
+    }
+    if (status === 'active') {
+      conditions.push('is_active = true')
+    } else if (status === 'suspended') {
+      conditions.push('is_active = false')
+    }
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : ''
+
+    const { rows } = await app.db.query(
+      `SELECT id, email, full_name AS "fullName", role,
+              is_active AS "isActive", created_at AS "createdAt"
+       FROM users ${where}
+       ORDER BY created_at DESC
+       LIMIT 200`,
+      params
+    )
+    return rows
+  })
+
+  // ── Suspend / Activate a User (System Admin only) ─────────────────────────────
+
+  app.patch('/users/:id/status', {
+    preHandler: app.requireRole(['system_admin']),
+    schema: {
+      tags: ['Auth'],
+      summary: 'Suspend or activate a user account — System Admin only',
+      params: {
+        type: 'object',
+        required: ['id'],
+        properties: { id: { type: 'string', format: 'uuid' } },
+      },
+      body: {
+        type: 'object',
+        required: ['isActive'],
+        properties: { isActive: { type: 'boolean' } },
+      },
+      response: {
+        200: { $ref: 'SuccessMessage#' },
+        403: { $ref: 'Error#' },
+        404: { $ref: 'Error#' },
+      },
+    },
+  }, async (request, reply) => {
+    const { id } = request.params as { id: string }
+    const { isActive } = request.body as { isActive: boolean }
+
+    // Prevent a system_admin from suspending their own account
+    if (id === request.jwtUser.sub) {
+      return reply.code(403).send({ error: 'You cannot suspend your own account' })
+    }
+
+    const { rowCount } = await app.db.query(
+      `UPDATE users SET is_active = $1, updated_at = NOW() WHERE id = $2`,
+      [isActive, id]
+    )
+
+    if (!rowCount || rowCount === 0) {
+      return reply.code(404).send({ error: 'User not found' })
+    }
+
+    return { success: true }
   })
 }

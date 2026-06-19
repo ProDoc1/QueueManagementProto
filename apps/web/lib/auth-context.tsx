@@ -8,7 +8,7 @@
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { apiRequest } from './api-client'
 
-export type UserRole = 'patient' | 'doctor' | 'receptionist' | 'admin'
+export type UserRole = 'patient' | 'doctor' | 'receptionist' | 'admin' | 'system_admin'
 
 export interface AuthUser {
   id: string

@@ -28,8 +28,12 @@
     "dotenv": "^16.4.5",
     "fastify": "^5.8.5",
     "fastify-plugin": "^5.1.0",
+    "html2canvas": "^1.4.1",
+    "jspdf": "^4.2.1",
     "node-pg-migrate": "^7.9.1",
     "pg": "^8.20.0",
+    "react-date-range": "^2.0.1",
+    "recharts": "^3.8.1",
     "redis": "^5.12.1",
     "socket.io": "^4.8.3",
     "uuid": "^11.1.1"

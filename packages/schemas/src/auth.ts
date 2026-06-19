@@ -15,7 +15,7 @@ export const StaffRegisterSchema = z.object({
   password: z.string().min(8, 'Password must be at least 8 characters'),
   fullName: z.string().min(2).max(100),
   phone: z.string().regex(/^\+?[1-9]\d{7,14}$/).optional(),
-  role: z.enum(['doctor', 'receptionist', 'admin']),
+  role: z.enum(['doctor', 'receptionist', 'system_admin']),
   licenseNumber: z.string().optional(),
 })
 

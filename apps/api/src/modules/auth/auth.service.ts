@@ -74,7 +74,12 @@ export async function createStaffUser(app: FastifyInstance, input: StaffRegister
   return user
 }
 
-export async function loginUser(app: FastifyInstance, input: LoginInput): Promise<{ user: User; accessToken: string; refreshToken: string }> {
+export async function loginUser(
+  app: FastifyInstance,
+  input: LoginInput,
+  ipAddress?: string,
+  userAgent?: string
+): Promise<{ user: User; accessToken: string; refreshToken: string }> {
   const { rows } = await app.db.query(
     `SELECT id, email, password_hash, phone, full_name AS "fullName", role,
             avatar_url AS "avatarUrl", is_active AS "isActive", created_at AS "createdAt", updated_at AS "updatedAt"
@@ -82,15 +87,39 @@ export async function loginUser(app: FastifyInstance, input: LoginInput): Promis
     [input.email]
   )
   const row = rows[0] as (User & { password_hash: string }) | undefined
-  if (!row) throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 })
+  if (!row) {
+    // Log failed login attempt
+    await app.db.query(
+      `INSERT INTO login_audit_log (email, role, ip_address, user_agent, status, failure_reason)
+       VALUES ($1, NULL, $2, $3, 'failed', 'Invalid credentials')`,
+      [input.email, ipAddress ?? null, userAgent ?? null]
+    ).catch(() => {})
+    throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 })
+  }
 
   const valid = await bcrypt.compare(input.password, row.password_hash)
-  if (!valid) throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 })
+  if (!valid) {
+    // Log failed login attempt
+    await app.db.query(
+      `INSERT INTO login_audit_log (email, role, ip_address, user_agent, status, failure_reason)
+       VALUES ($1, $2, $3, $4, 'failed', 'Invalid password')`,
+      [input.email, row.role, ipAddress ?? null, userAgent ?? null]
+    ).catch(() => {})
+    throw Object.assign(new Error('Invalid credentials'), { statusCode: 401 })
+  }
 
   if (!row.isActive) throw Object.assign(new Error('Account suspended'), { statusCode: 403 })
 
   const { password_hash: _, ...user } = row
   const tokens = await issueTokens(app, user as User)
+
+  // Log successful login
+  await app.db.query(
+    `INSERT INTO login_audit_log (user_id, email, role, ip_address, user_agent, status)
+     VALUES ($1, $2, $3, $4, $5, 'success')`,
+    [user.id, user.email, user.role, ipAddress ?? null, userAgent ?? null]
+  ).catch(() => {})
+
   return { user: user as User, ...tokens }
 }
 

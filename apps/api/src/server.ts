@@ -8,6 +8,7 @@ import { socketPlugin } from './plugins/socket.js'
 import { corsPlugin } from './plugins/cors.js'
 import { rateLimitPlugin } from './plugins/rate-limit.js'
 import { auditMiddleware } from './shared/middleware/audit.js'
+import { maintenanceMiddleware } from './shared/middleware/maintenance.js'
 import { authRoutes } from './modules/auth/auth.routes.js'
 import { doctorRoutes } from './modules/doctors/doctors.routes.js'
 import { appointmentRoutes } from './modules/appointments/appointments.routes.js'
@@ -16,6 +17,7 @@ import { healthRecordRoutes } from './modules/health-records/records.routes.js'
 import { queueRoutes } from './modules/queue/queue.routes.js'
 import { notificationRoutes } from './modules/notifications/notifications.routes.js'
 import { clinicRoutes } from './modules/clinics/clinics.routes.js'
+import { systemAdminRoutes } from './modules/system-admin/system-admin.routes.js'
 
 const app = Fastify({
   logger: { level: process.env.LOG_LEVEL ?? 'info' },
@@ -38,6 +40,7 @@ async function main() {
   await app.register(redisPlugin)
   await app.register(authPlugin)
   await app.register(socketPlugin)
+  await app.register(maintenanceMiddleware)
   await app.register(auditMiddleware)
 
   await app.register(authRoutes, { prefix: '/api/auth' })
@@ -48,6 +51,7 @@ async function main() {
   await app.register(queueRoutes, { prefix: '/api/queue' })
   await app.register(notificationRoutes, { prefix: '/api/notifications' })
   await app.register(clinicRoutes, { prefix: '/api/clinics' })
+  await app.register(systemAdminRoutes, { prefix: '/api/system-admin' })
 
   app.get('/healthz', {
     schema: {
@@ -70,10 +74,12 @@ async function main() {
     const { startReminderJob } = await import('./jobs/reminder.job.js')
     const { startSlotGeneratorJob } = await import('./jobs/slot-generator.job.js')
     const { startQueueCleanJob } = await import('./jobs/queue-clean.job.js')
+    const { startStatisticsJob } = await import('./jobs/statistics.job.js')
     startPenaltyJob(app)
     startReminderJob(app)
     startSlotGeneratorJob(app)
     startQueueCleanJob(app)
+    startStatisticsJob(app)
   }
 }
 

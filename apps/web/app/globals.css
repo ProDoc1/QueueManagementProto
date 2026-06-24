@@ -1,6 +1,9 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
 
 * {
   box-sizing: border-box;
@@ -60,4 +63,35 @@
     background-color: var(--background);
     color: var(--foreground);
   }
+}
+
+/* --- MapLibre Integration Styles --- */
+
+
+/* Force structural map containers to adhere to viewport parent bounds */
+.maplibregl-map {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Clear native MapLibre white card background sheets for custom popups */
+.maplibregl-popup-content {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+
+/* Match canvas tips to your design system's border tokens */
+.maplibregl-popup-anchor-top .maplibregl-popup-tip {
+  border-bottom-color: var(--border) !important;
+}
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip {
+  border-top-color: var(--border) !important;
+}
+.maplibregl-popup-anchor-left .maplibregl-popup-tip {
+  border-right-color: var(--border) !important;
+}
+.maplibregl-popup-anchor-right .maplibregl-popup-tip {
+  border-left-color: var(--border) !important;
 }

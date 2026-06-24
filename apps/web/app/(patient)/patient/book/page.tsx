@@ -6,8 +6,9 @@ import { apiRequest } from '@/lib/api-client'
 import PenaltyWarning from '@/components/appointments/PenaltyWarning'
 import {
   MapPin, Star, Phone, Clock, Check, AlertTriangle, CheckCircle,
-  ChevronLeft, X, Search, Filter, Navigation2,
+  ChevronLeft, X, Search, Filter, Navigation2, Navigation,
 } from 'lucide-react'
+import { Map, MapMarker, MarkerContent, MarkerLabel, MarkerPopup, MapControls } from "@/components/ui/mapcn-marker-popup"
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Doctor {
@@ -43,58 +44,91 @@ function fmt12(hour: number) {
   return `${hour - 12}:00 PM`
 }
 
+// Clean OpenFreeMap style definitions to bypass theme load blocks
+const FREE_MAP_STYLES = {
+  light: "https://tiles.openfreemap.org/styles/liberty",
+  dark: "https://tiles.openfreemap.org/styles/dark",
+};
+
 // ─── City Map ─────────────────────────────────────────────────────────────────
-function CityMap({ accentColor }: { accentColor: string }) {
+function CityMap({ onSelect }: { onSelect: () => void }) {
+  // Center coordinates for MediQueue Clinic (Colombo, Sri Lanka)
+  const INITIAL_CENTER: [number, number] = [79.8612, 6.9271];
+
   return (
-    <div className="relative w-full h-full overflow-hidden bg-[#E8EDF2]">
-      <div
-        className="absolute inset-0"
-        style={{ background: 'radial-gradient(ellipse at 15% 15%, #C5D9EE 0%, #C5D9EE 35%, transparent 60%)' }}
-      />
-      <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-        <line x1="0" y1="50" x2="100" y2="50" stroke="white" strokeWidth="1.2" />
-        <line x1="0" y1="73" x2="100" y2="73" stroke="white" strokeWidth="1.2" />
-        <line x1="23" y1="0" x2="23" y2="100" stroke="white" strokeWidth="1.2" />
-        <line x1="47" y1="0" x2="47" y2="100" stroke="white" strokeWidth="1.2" />
-        <line x1="71" y1="0" x2="71" y2="100" stroke="white" strokeWidth="1.2" />
-        <line x1="0" y1="32" x2="100" y2="32" stroke="white" strokeWidth="0.6" />
-        <path d="M 0 60 Q 25 50 47 50 T 100 62" stroke="white" strokeWidth="0.8" fill="none" />
-        <path d="M 23 0 Q 28 25 35 50 Q 42 75 47 100" stroke="white" strokeWidth="0.7" fill="none" />
-      </svg>
-      {/* Single clinic pin */}
-      <div
-        className="absolute"
-        style={{ left: '43%', top: '38%', transform: 'translate(-50%,-50%)', zIndex: 10 }}
+    <div className="relative w-full h-full overflow-hidden rounded-xl border border-border">
+      <Map
+        center={INITIAL_CENTER}
+        zoom={14}
+        styles={FREE_MAP_STYLES}
       >
-        <span
-          className="absolute inset-0 rounded-full animate-ping opacity-30"
-          style={{ background: accentColor, transform: 'scale(2)', animationDuration: '2.5s' }}
-        />
-        <div
-          className="relative w-8 h-8 rounded-full border-2 border-white shadow-lg flex items-center justify-center"
-          style={{ background: accentColor }}
-        >
-          <div className="w-2.5 h-2.5 rounded-full bg-white" />
-        </div>
-        <div className="absolute bottom-full left-1/2 mb-2 -translate-x-1/2 whitespace-nowrap bg-white rounded-lg shadow-lg border border-black/5 px-3 py-1.5 pointer-events-none">
-          <p className="text-xs font-semibold text-gray-800">MediQueue Clinic</p>
-          <span className="inline-flex items-center gap-1 text-[10px] text-[#137333] font-medium">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#34A853]" /> Open Now
-          </span>
-        </div>
-      </div>
-      {/* Controls */}
-      <div className="absolute bottom-3 right-3 flex flex-col gap-1">
-        <button className="w-7 h-7 bg-white rounded shadow-md flex items-center justify-center text-gray-500 hover:bg-gray-50 text-sm font-bold">+</button>
-        <button className="w-7 h-7 bg-white rounded shadow-md flex items-center justify-center text-gray-500 hover:bg-gray-50 text-sm font-bold">−</button>
-      </div>
-      <div className="absolute bottom-3 left-3">
-        <button className="flex items-center gap-1.5 bg-white rounded-lg shadow-md px-2.5 py-1.5 text-xs text-gray-500 hover:bg-gray-50">
-          <Navigation2 className="w-3 h-3" /> Locate me
-        </button>
-      </div>
+        {/* Controls aligned cleanly at the bottom right */}
+        <MapControls position="bottom-right" showZoom showLocate />
+
+        <MapMarker longitude={79.8612} latitude={6.9271}>
+          {/* Custom Blueprint Pulse Marker matching the style in clinic-finder */}
+          <MarkerContent>
+            <div className="relative flex items-center justify-center cursor-pointer group">
+              <div className="absolute h-6 w-6 rounded-full bg-blue-500/30 border-2 border-blue-500/40 animate-ping" />
+              <div className="relative h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow-lg group-hover:scale-110 group-hover:bg-blue-500 transition-all duration-200 flex items-center justify-center">
+                <div className="h-1.5 w-1.5 rounded-full bg-white" />
+              </div>
+            </div>
+            <MarkerLabel position="bottom">MediQueue Clinic</MarkerLabel>
+          </MarkerContent>
+
+          {/* Popup card details matching the requested design with a premium glassmorphic feel */}
+          <MarkerPopup className="w-64 p-0 overflow-hidden bg-[#141B2B] text-slate-200 shadow-2xl rounded-xl border border-white/5">
+            {/* Visual Header / Cover Image */}
+            <div className="relative h-28 w-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_100%)] animate-pulse duration-1000" />
+              <span className="text-white/20 text-5xl font-black select-none tracking-wider font-mono">MQ</span>
+              <div className="absolute bottom-2.5 left-3 bg-black/40 backdrop-blur-md px-2.5 py-0.5 rounded text-[10px] text-emerald-400 font-semibold tracking-wide border border-emerald-500/20">
+                ★ 4.8 / 5
+              </div>
+            </div>
+
+            {/* Clinic Details */}
+            <div className="p-4 space-y-3.5">
+              <div>
+                <p className="text-slate-400/80 text-[10px] font-semibold tracking-wider uppercase">
+                  General / Specialist
+                </p>
+                <h3 className="font-semibold text-sm text-slate-100 tracking-tight mt-0.5">
+                  MediQueue Clinic
+                </h3>
+              </div>
+
+              <div className="flex flex-col gap-2 pt-0.5">
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="text-emerald-400 font-medium">Open Now</span>
+                  <span className="text-slate-600">•</span>
+                  <span className="text-slate-400">0.3 km away</span>
+                </div>
+                <div className="text-[11px] text-slate-400 leading-normal flex flex-col gap-0.5">
+                  <p>12 Main Street, Central District</p>
+                  <p className="text-slate-500">+1 (555) 123-4567</p>
+                </div>
+              </div>
+
+              {/* Book Token Button */}
+              <div className="pt-2 border-t border-white/5 flex gap-2">
+                <button
+                  type="button"
+                  onClick={onSelect}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all active:scale-95 duration-150"
+                >
+                  <Navigation className="w-3.5 h-3.5" />
+                  Book Token
+                </button>
+              </div>
+            </div>
+          </MarkerPopup>
+        </MapMarker>
+      </Map>
     </div>
-  )
+  );
 }
 
 // ─── Clinic card ──────────────────────────────────────────────────────────────
@@ -417,7 +451,7 @@ export default function PatientBookPage() {
 
         {/* Map */}
         <div className="flex-1 min-h-0 relative" style={{ minHeight: 260, maxHeight: '55%' }}>
-          <CityMap accentColor="#1A73E8" />
+          <CityMap onSelect={() => setScreen('profile')} />
         </div>
 
         {/* Nearby Clinics */}

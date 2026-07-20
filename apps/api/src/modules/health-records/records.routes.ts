@@ -45,7 +45,7 @@ export async function healthRecordRoutes(app: FastifyInstance) {
 
   // ── Doctor: view patient records ────────────────────────────────────────────
   app.get('/patient/:patientId', {
-    preHandler: app.requireRole(['doctor', 'admin']),
+    preHandler: app.requireRole(['doctor', ]),
     schema: {
       tags: ['Health Records'],
       summary: "View all of a patient's records — Doctor / Admin",

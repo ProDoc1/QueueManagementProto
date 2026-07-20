@@ -1,7 +1,8 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useAuth } from '@/lib/auth-context'
+import { useSearchParams } from 'next/navigation'
 import { apiRequest } from '@/lib/api-client'
 import PenaltyWarning from '@/components/appointments/PenaltyWarning'
 import {
@@ -9,6 +10,7 @@ import {
   ChevronLeft, X, Search, Filter, Navigation2, Navigation,
 } from 'lucide-react'
 import { Map, MapMarker, MarkerContent, MarkerLabel, MarkerPopup, MapControls } from "@/components/ui/mapcn-marker-popup"
+import { ClinicCard } from '@/components/patient/ClinicCard'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface Doctor {
@@ -51,116 +53,116 @@ const FREE_MAP_STYLES = {
 };
 
 // ─── City Map ─────────────────────────────────────────────────────────────────
-function CityMap({ onSelect }: { onSelect: () => void }) {
-  // Center coordinates for MediQueue Clinic (Colombo, Sri Lanka)
-  const INITIAL_CENTER: [number, number] = [79.8612, 6.9271];
+function CityMap({ onSelect, clinics }: { onSelect: (c: any) => void; clinics: any[] }) {
+  const [viewport, setViewport] = useState({
+    center: [79.8612, 6.9271] as [number, number],
+    zoom: 14,
+    bearing: 0,
+    pitch: 0,
+  });
+
+  useEffect(() => {
+    if ("geolocation" in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setViewport((prev) => ({
+            ...prev,
+            center: [position.coords.longitude, position.coords.latitude],
+          }));
+        },
+        (error) => {
+          console.error("Error getting user location:", error);
+        },
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+    }
+  }, []);
 
   return (
     <div className="relative w-full h-full overflow-hidden rounded-xl border border-border">
       <Map
-        center={INITIAL_CENTER}
-        zoom={14}
+        viewport={viewport}
+        onViewportChange={setViewport}
         styles={FREE_MAP_STYLES}
       >
         {/* Controls aligned cleanly at the bottom right */}
         <MapControls position="bottom-right" showZoom showLocate />
 
-        <MapMarker longitude={79.8612} latitude={6.9271}>
-          {/* Custom Blueprint Pulse Marker matching the style in clinic-finder */}
-          <MarkerContent>
-            <div className="relative flex items-center justify-center cursor-pointer group">
-              <div className="absolute h-6 w-6 rounded-full bg-blue-500/30 border-2 border-blue-500/40 animate-ping" />
-              <div className="relative h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow-lg group-hover:scale-110 group-hover:bg-blue-500 transition-all duration-200 flex items-center justify-center">
-                <div className="h-1.5 w-1.5 rounded-full bg-white" />
-              </div>
-            </div>
-            <MarkerLabel position="bottom">MediQueue Clinic</MarkerLabel>
-          </MarkerContent>
-
-          {/* Popup card details matching the requested design with a premium glassmorphic feel */}
-          <MarkerPopup className="w-64 p-0 overflow-hidden bg-[#141B2B] text-slate-200 shadow-2xl rounded-xl border border-white/5">
-            {/* Visual Header / Cover Image */}
-            <div className="relative h-28 w-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_100%)] animate-pulse duration-1000" />
-              <span className="text-white/20 text-5xl font-black select-none tracking-wider font-mono">MQ</span>
-              <div className="absolute bottom-2.5 left-3 bg-black/40 backdrop-blur-md px-2.5 py-0.5 rounded text-[10px] text-emerald-400 font-semibold tracking-wide border border-emerald-500/20">
-                ★ 4.8 / 5
-              </div>
-            </div>
-
-            {/* Clinic Details */}
-            <div className="p-4 space-y-3.5">
-              <div>
-                <p className="text-slate-400/80 text-[10px] font-semibold tracking-wider uppercase">
-                  General / Specialist
-                </p>
-                <h3 className="font-semibold text-sm text-slate-100 tracking-tight mt-0.5">
-                  MediQueue Clinic
-                </h3>
-              </div>
-
-              <div className="flex flex-col gap-2 pt-0.5">
-                <div className="flex items-center gap-2 text-xs">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-emerald-400 font-medium">Open Now</span>
-                  <span className="text-slate-600">•</span>
-                  <span className="text-slate-400">0.3 km away</span>
+        {clinics.map(clinic => {
+          const lon = clinic.longitude ?? 79.8612;
+          const lat = clinic.latitude ?? 6.9271;
+          return (
+            <MapMarker key={clinic.id} longitude={lon} latitude={lat}>
+              {/* Custom Blueprint Pulse Marker matching the style in clinic-finder */}
+              <MarkerContent>
+                <div className="relative flex items-center justify-center cursor-pointer group">
+                  <div className="absolute h-6 w-6 rounded-full bg-blue-500/30 border-2 border-blue-500/40 animate-ping" />
+                  <div className="relative h-4 w-4 rounded-full border-2 border-white bg-blue-600 shadow-lg group-hover:scale-110 group-hover:bg-blue-500 transition-all duration-200 flex items-center justify-center">
+                    <div className="h-1.5 w-1.5 rounded-full bg-white" />
+                  </div>
                 </div>
-                <div className="text-[11px] text-slate-400 leading-normal flex flex-col gap-0.5">
-                  <p>12 Main Street, Central District</p>
-                  <p className="text-slate-500">+1 (555) 123-4567</p>
-                </div>
-              </div>
+                <MarkerLabel position="bottom">{clinic.name}</MarkerLabel>
+              </MarkerContent>
 
-              {/* Book Token Button */}
-              <div className="pt-2 border-t border-white/5 flex gap-2">
-                <button
-                  type="button"
-                  onClick={onSelect}
-                  className="flex-1 inline-flex items-center justify-center gap-1.5 h-8.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all active:scale-95 duration-150"
-                >
-                  <Navigation className="w-3.5 h-3.5" />
-                  Book Token
-                </button>
-              </div>
-            </div>
-          </MarkerPopup>
-        </MapMarker>
+              {/* Popup card details matching the requested design with a premium glassmorphic feel */}
+              <MarkerPopup className="w-64 p-0 overflow-hidden bg-[#141B2B] text-slate-200 shadow-2xl rounded-xl border border-white/5">
+                {/* Visual Header / Cover Image */}
+                <div className="relative h-28 w-full bg-gradient-to-br from-blue-600 to-indigo-700 flex items-center justify-center overflow-hidden">
+                  <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.15)_0%,transparent_100%)] animate-pulse duration-1000" />
+                  <span className="text-white/20 text-5xl font-black select-none tracking-wider font-mono">
+                    {clinic.name.substring(0, 2).toUpperCase()}
+                  </span>
+                  <div className="absolute bottom-2.5 left-3 bg-black/40 backdrop-blur-md px-2.5 py-0.5 rounded text-[10px] text-emerald-400 font-semibold tracking-wide border border-emerald-500/20">
+                    ★ 4.8 / 5
+                  </div>
+                </div>
+
+                {/* Clinic Details */}
+                <div className="p-4 space-y-3.5">
+                  <div>
+                    <p className="text-slate-400/80 text-[10px] font-semibold tracking-wider uppercase">
+                      Medical Center
+                    </p>
+                    <h3 className="font-semibold text-sm text-slate-100 tracking-tight mt-0.5">
+                      {clinic.name}
+                    </h3>
+                  </div>
+
+                  <div className="flex flex-col gap-2 pt-0.5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      <span className="text-emerald-400 font-medium">Open Now</span>
+                      <span className="text-slate-600">•</span>
+                      <span className="text-slate-400">0.3 km away</span>
+                    </div>
+                    <div className="text-[11px] text-slate-400 leading-normal flex flex-col gap-0.5">
+                      <p>{clinic.address || "No address provided"}</p>
+                      <p className="text-slate-500">{clinic.phone || ""}</p>
+                    </div>
+                  </div>
+
+                  {/* Book Token Button */}
+                  <div className="pt-2 border-t border-white/5 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => onSelect(clinic)}
+                      className="flex-1 inline-flex items-center justify-center gap-1.5 h-8.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg text-xs font-semibold shadow-md transition-all active:scale-95 duration-150"
+                    >
+                      <Navigation className="w-3.5 h-3.5" />
+                      Book Token
+                    </button>
+                  </div>
+                </div>
+              </MarkerPopup>
+            </MapMarker>
+          );
+        })}
       </Map>
     </div>
   );
 }
 
 // ─── Clinic card ──────────────────────────────────────────────────────────────
-function ClinicCard({ onSelect }: { onSelect: () => void }) {
-  return (
-    <button
-      onClick={onSelect}
-      className="flex-shrink-0 w-52 bg-white rounded-xl p-3 text-left transition-all duration-150 border border-transparent shadow-[0_2px_12px_rgba(0,0,0,0.08)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.12)] hover:border-[#1A73E8]/30"
-    >
-      <div className="flex items-start justify-between mb-2">
-        <div className="w-10 h-10 rounded-lg bg-[#1A73E8] flex items-center justify-center text-sm font-bold text-white">MQ</div>
-        <div className="flex items-center gap-1 text-[11px] text-gray-400">
-          <MapPin className="w-3 h-3" />0.3 km
-        </div>
-      </div>
-      <p className="text-sm font-semibold text-gray-800 leading-tight mb-1.5">MediQueue Clinic</p>
-      <div className="flex flex-wrap gap-1 mb-2">
-        {['General', 'Specialist'].map((s) => (
-          <span key={s} className="inline-block px-2 py-0.5 rounded-md bg-[#E8F0FE] text-[#1A73E8] text-[11px] font-medium">{s}</span>
-        ))}
-      </div>
-      <div className="flex items-center justify-between">
-        <span className="inline-flex items-center gap-1 text-xs text-gray-600">
-          <Star className="w-3 h-3 fill-[#F9AB00] text-[#F9AB00]" />4.8
-        </span>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#E6F4EA] text-[#137333]">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#34A853]" />Open Now
-        </span>
-      </div>
-    </button>
-  )
-}
 
 // ─── Booking modal ────────────────────────────────────────────────────────────
 function BookingModal({
@@ -322,15 +324,59 @@ function BookingModal({
 }
 
 // ─── Main page ────────────────────────────────────────────────────────────────
-export default function PatientBookPage() {
+function PatientBookContent() {
   const { accessToken } = useAuth()
+  const searchParams = useSearchParams()
+  const initialClinicId = searchParams.get('clinicId')
+
   const [screen, setScreen] = useState<Screen>('finder')
   const [search, setSearch] = useState('')
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [clinics, setClinics] = useState<any[]>([])
+  const [favoriteClinics, setFavoriteClinics] = useState<string[]>([])
+  const [selectedClinic, setSelectedClinic] = useState<any | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [loadingSessions, setLoadingSessions] = useState(false)
   const [penalty, setPenalty] = useState<PenaltyInfo | null>(null)
 
+  // Fetch all active clinics and favorites
+  useEffect(() => {
+    if (accessToken) {
+      Promise.all([
+        apiRequest<any[]>('/api/clinics', { token: accessToken }),
+        apiRequest<any[]>('/api/patients/favorites', { token: accessToken }).catch(() => [])
+      ])
+        .then(([data, favorites]) => {
+          setClinics(data)
+          setFavoriteClinics(favorites.map(f => f.id))
+          if (initialClinicId) {
+            const clinic = data.find((c: any) => c.id === initialClinicId)
+            if (clinic) {
+              setSelectedClinic(clinic)
+              setScreen('profile')
+            }
+          }
+        })
+        .catch((e) => console.log("API Error:", e.message))
+    }
+  }, [accessToken, initialClinicId])
+
+  async function handleToggleFavorite(clinicId: string, e: React.MouseEvent) {
+    e.stopPropagation()
+    if (!accessToken) return
+    const isFav = favoriteClinics.includes(clinicId)
+    setFavoriteClinics(prev => isFav ? prev.filter(id => id !== clinicId) : [...prev, clinicId])
+    try {
+      if (isFav) {
+        await apiRequest(`/api/patients/favorites/${clinicId}`, { method: 'DELETE', token: accessToken })
+      } else {
+        await apiRequest('/api/patients/favorites', { method: 'POST', token: accessToken, body: { clinicId } })
+      }
+    } catch (err) {
+      console.log('Error toggling favorite', err)
+      setFavoriteClinics(prev => isFav ? [...prev, clinicId] : prev.filter(id => id !== clinicId))
+    }
+  }
   // Booking state
   const [activeSession, setActiveSession] = useState<Session | null>(null)
   const [selectedSlot, setSelectedSlot] = useState<Slot | null>(null)
@@ -348,17 +394,20 @@ export default function PatientBookPage() {
     }
   }, [accessToken])
 
-  // When entering the profile screen, fetch doctors + their slots
+  // When entering the profile screen, fetch doctors for the selected clinic + their slots
   useEffect(() => {
-    if (screen !== 'profile') return
+    if (screen !== 'profile' || !selectedClinic) return
     setLoadingSessions(true)
 
-    apiRequest<{ data: Doctor[] }>('/api/doctors')
-      .then(async ({ data: docs }) => {
-        setDoctors(docs)
+    apiRequest<any[]>(`/api/clinics/${selectedClinic.id}/doctors`, { token: accessToken ?? undefined })
+      .then(async (docs) => {
+        // map doctorId to id
+        const mappedDocs = docs.map((d: any) => ({ ...d, id: d.doctorId }))
+        setDoctors(mappedDocs)
+        
         // Fetch slots for each doctor in parallel
         const results = await Promise.all(
-          docs.map(async (doc) => {
+          mappedDocs.map(async (doc) => {
             try {
               const slots = await apiRequest<Slot[]>(
                 `/api/appointments/slots?doctorId=${doc.id}&date=${today}`,
@@ -383,9 +432,9 @@ export default function PatientBookPage() {
 
         setSessions(built)
       })
-      .catch(() => {})
+      .catch((e) => console.log("API Error:", e.message))
       .finally(() => setLoadingSessions(false))
-  }, [screen, today])
+  }, [screen, selectedClinic, today, accessToken])
 
   function openBooking(s: Session) {
     setActiveSession(s)
@@ -426,6 +475,11 @@ export default function PatientBookPage() {
     s.doctor.specialization.toLowerCase().includes(search.toLowerCase()),
   )
 
+  const filteredClinics = clinics.filter((c) =>
+    c.name.toLowerCase().includes(search.toLowerCase()) ||
+    (c.address && c.address.toLowerCase().includes(search.toLowerCase()))
+  )
+
   // ── Clinic Finder ───────────────────────────────────────────────────────────
   if (screen === 'finder') {
     return (
@@ -438,8 +492,14 @@ export default function PatientBookPage() {
               type="text"
               placeholder="Search clinic by name or location..."
               className="flex-1 bg-transparent text-sm text-gray-700 placeholder-gray-400 outline-none"
-              readOnly
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
+            {search && (
+              <button onClick={() => setSearch('')} className="p-0.5 hover:bg-gray-250 rounded-full transition-colors">
+                <X className="w-4 h-4 text-gray-400" />
+              </button>
+            )}
           </div>
           <button className="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-600 hover:bg-gray-50">
             <Filter className="w-4 h-4" />Filter
@@ -451,7 +511,10 @@ export default function PatientBookPage() {
 
         {/* Map */}
         <div className="flex-1 min-h-0 relative" style={{ minHeight: 260, maxHeight: '55%' }}>
-          <CityMap onSelect={() => setScreen('profile')} />
+          <CityMap 
+            clinics={filteredClinics}
+            onSelect={(c) => { setSelectedClinic(c); setScreen('profile') }} 
+          />
         </div>
 
         {/* Nearby Clinics */}
@@ -459,14 +522,26 @@ export default function PatientBookPage() {
           <div className="px-5 pt-3 pb-2 flex items-center justify-between">
             <div>
               <h2 className="text-sm font-semibold text-gray-800">Nearby Clinics</h2>
-              <p className="text-xs text-gray-400 mt-0.5">1 open now</p>
+              <p className="text-xs text-gray-400 mt-0.5">{filteredClinics.length} active</p>
             </div>
             <button className="text-xs text-[#1A73E8] font-medium hover:underline flex items-center gap-1">
               Find More <ChevronLeft className="w-3.5 h-3.5 rotate-180" />
             </button>
           </div>
           <div className="flex gap-3 px-5 pb-4 overflow-x-auto" style={{ scrollbarWidth: 'none' }}>
-            <ClinicCard onSelect={() => setScreen('profile')} />
+            {filteredClinics.length === 0 ? (
+              <div className="text-sm text-gray-400 py-4 w-full text-center">No clinics found matching your search.</div>
+            ) : (
+              filteredClinics.map(clinic => (
+                <ClinicCard 
+                  key={clinic.id} 
+                  clinic={clinic}
+                  onSelect={(c) => { setSelectedClinic(c); setScreen('profile') }}
+                  isFavorite={favoriteClinics.includes(clinic.id)}
+                  onToggleFavorite={handleToggleFavorite}
+                />
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -492,7 +567,7 @@ export default function PatientBookPage() {
       <div className="px-5 pt-10 pb-8 space-y-6">
         {/* Clinic info */}
         <div>
-          <h2 className="text-lg font-semibold text-gray-900">MediQueue Clinic</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{selectedClinic?.name}</h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="inline-flex items-center gap-1 text-xs text-gray-600">
               <Star className="w-3 h-3 fill-[#F9AB00] text-[#F9AB00]" />4.8
@@ -504,11 +579,11 @@ export default function PatientBookPage() {
           </div>
           <div className="flex items-center gap-1.5 mt-2 text-sm text-gray-500">
             <MapPin className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-            <span>12 Main Street, Central District</span>
+            <span>{selectedClinic?.address || "No address"}</span>
           </div>
           <div className="flex items-center gap-1.5 mt-1 text-sm text-gray-500">
             <Phone className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-            <span>+1 (555) 123-4567</span>
+            <span>{selectedClinic?.phone || "No phone"}</span>
           </div>
         </div>
 
@@ -660,5 +735,13 @@ export default function PatientBookPage() {
         />
       )}
     </div>
+  )
+}
+
+export default function PatientBookPage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center h-full text-sm text-gray-500">Loading...</div>}>
+      <PatientBookContent />
+    </Suspense>
   )
 }

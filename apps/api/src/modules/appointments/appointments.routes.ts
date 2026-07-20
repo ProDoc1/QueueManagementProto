@@ -132,7 +132,7 @@ export async function appointmentRoutes(app: FastifyInstance) {
 
   // ── Generate slots ──────────────────────────────────────────────────────────
   app.post('/slots/generate', {
-    preHandler: app.requireRole(['admin', 'doctor']),
+    preHandler: app.requireRole(['doctor']),
     schema: {
       tags: ['Appointments'],
       summary: 'Generate slots for a date range from doctor working_hours — Admin/Doctor',
@@ -174,7 +174,7 @@ export async function appointmentRoutes(app: FastifyInstance) {
 
   // ── Complete ────────────────────────────────────────────────────────────────
   app.put('/:id/complete', {
-    preHandler: app.requireRole(['doctor', 'receptionist', 'admin']),
+    preHandler: app.requireRole(['doctor', 'receptionist', ]),
     schema: {
       tags: ['Appointments'],
       summary: 'Mark appointment completed',
@@ -235,7 +235,7 @@ export async function appointmentRoutes(app: FastifyInstance) {
 
   // ── Admin: reset penalty ────────────────────────────────────────────────────
   app.put('/penalty/:patientId/reset', {
-    preHandler: app.requireRole(['admin']),
+    preHandler: app.requireRole([]),
     schema: {
       tags: ['Appointments'],
       summary: 'Reset patient penalty to 0 — Admin only',

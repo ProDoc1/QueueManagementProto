@@ -37,7 +37,7 @@ async function migrate() {
       await client.query(
         `INSERT INTO system_audit_log (user_id, action, resource, resource_id, old_value, new_value, created_at)
          VALUES (NULL, $1, $2, NULL, $3, $4, NOW())`,
-        ['data_migration', 'user_roles', JSON.stringify({ user_ids }), JSON.stringify({ role: 'system_admin', count: result.rowCount })]
+        ['data_migration', 'user_roles', JSON.stringify({ userIds }), JSON.stringify({ role: 'system_admin', count: result.rowCount })]
       )
       console.log('✓ Logged migration event to system_audit_log')
     }

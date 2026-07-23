@@ -5,19 +5,21 @@ import { useRouter, usePathname } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/lib/auth-context'
 import {
-  Map, FileText, Navigation, Heart, Bell, LogOut, ChevronRight,
+  Map, FileText, Navigation, Heart, Bell, LogOut, ChevronRight, User,
 } from 'lucide-react'
 
 const NAV = [
   { id: 'finder',  label: 'Clinic Finder',  href: '/patient/book',         icon: Map },
   { id: 'tokens',  label: 'My Tokens',       href: '/patient/appointments', icon: FileText },
   { id: 'nearby',  label: 'Nearby',          href: '/patient/book',         icon: Navigation },
-  { id: 'saved',   label: 'Favourites',      href: '/patient/book',         icon: Heart },
+  { id: 'saved',   label: 'Favourites',      href: '/patient/favorites',    icon: Heart },
+  { id: 'profile', label: 'My Profile',      href: '/patient/profile',      icon: User },
 ]
 
 const BOTTOM_MOBILE = [
-  { id: 'finder', label: 'Home',   href: '/patient/book',         icon: Map },
-  { id: 'tokens', label: 'Tokens', href: '/patient/appointments', icon: FileText },
+  { id: 'finder',  label: 'Home',    href: '/patient/book',         icon: Map },
+  { id: 'tokens',  label: 'Tokens',  href: '/patient/appointments', icon: FileText },
+  { id: 'profile', label: 'Profile', href: '/patient/profile',      icon: User },
 ]
 
 export default function PatientShell({ children }: { children: React.ReactNode }) {
@@ -41,7 +43,7 @@ export default function PatientShell({ children }: { children: React.ReactNode }
 
   if (!user || user.role !== 'patient') return null
 
-  const activeId = pathname.includes('/appointments') ? 'tokens' : 'finder'
+  const activeId = pathname.includes('/profile') ? 'profile' : pathname.includes('/appointments') ? 'tokens' : pathname.includes('/favorites') ? 'saved' : 'finder'
 
   async function handleLogout() {
     await logout()
@@ -110,7 +112,7 @@ export default function PatientShell({ children }: { children: React.ReactNode }
               <span className="text-white text-xs font-bold">MQ</span>
             </div>
             <h1 className="text-sm font-semibold text-gray-900">
-              {activeId === 'tokens' ? 'My Tokens' : 'Clinic Finder'}
+              {activeId === 'tokens' ? 'My Tokens' : activeId === 'saved' ? 'Favourites' : activeId === 'profile' ? 'My Profile' : 'Clinic Finder'}
             </h1>
           </div>
           <div className="flex items-center gap-2">

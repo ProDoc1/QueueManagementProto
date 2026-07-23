@@ -99,7 +99,7 @@ export async function doctorRoutes(app: FastifyInstance) {
 
   // ── System-Wide Admin Directory ──────────────────────────────────────────────
   app.get('/directory', {
-    preHandler: app.requireRole(['admin']),
+    preHandler: app.requireRole([]),
     schema: {
       tags: ['Doctors'],
       summary: 'System-Wide Doctor Directory for Admins',

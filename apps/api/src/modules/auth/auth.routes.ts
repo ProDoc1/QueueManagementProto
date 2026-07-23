@@ -164,7 +164,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post('/staff', {
-    preHandler: app.requireRole(['admin','system_admin']),
+    preHandler: app.requireRole([,'system_admin']),
     schema: {
       tags: ['Auth'],
       summary: 'Create a staff account (doctor or receptionist) — Admin only',
@@ -207,7 +207,7 @@ export async function authRoutes(app: FastifyInstance) {
         properties: {
           role: {
             type: 'string',
-            enum: ['patient', 'doctor', 'receptionist', 'admin', 'system_admin'],
+            enum: ['patient', 'doctor', 'receptionist', 'system_admin'],
           },
         },
       },
@@ -221,7 +221,7 @@ export async function authRoutes(app: FastifyInstance) {
     const { id } = request.params as { id: string }
     const { role } = request.body as { role: string }
 
-    const allowedRoles = ['patient', 'doctor', 'receptionist', 'admin', 'system_admin']
+    const allowedRoles = ['patient', 'doctor', 'receptionist', 'system_admin']
     if (!allowedRoles.includes(role)) {
       return reply.code(400).send({ error: 'Invalid role assignment' })
     }

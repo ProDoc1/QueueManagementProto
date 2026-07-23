@@ -5,7 +5,7 @@ import type { User, UserRole } from '@repo/types'
 import type { RegisterInput, StaffRegisterInput, LoginInput } from '@repo/schemas'
 
 export async function registerUser(input: RegisterInput): Promise<{ user: User; refreshToken: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   if (input.role !== 'patient') {
     throw new Error('Only patients can self-register')
   }
@@ -31,6 +31,7 @@ export async function registerUser(input: RegisterInput): Promise<{ user: User; 
   const typedUser: User = {
     id: user.id,
     email: user.email,
+    phone: user.phone ?? null,
     fullName: user.full_name,
     role: user.role as UserRole,
     avatarUrl: user.avatar_url ?? null,
@@ -51,7 +52,7 @@ export async function registerUser(input: RegisterInput): Promise<{ user: User; 
 }
 
 export async function createStaffUser(input: StaffRegisterInput): Promise<User> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: existing } = await supabase.from('users').select('id').eq('email', input.email).maybeSingle()
   if (existing) throw new Error('Email already registered')
 
@@ -80,6 +81,7 @@ export async function createStaffUser(input: StaffRegisterInput): Promise<User> 
   const typedUser: User = {
     id: user.id,
     email: user.email,
+    phone: user.phone ?? null,
     fullName: user.full_name,
     role: user.role as UserRole,
     avatarUrl: user.avatar_url ?? null,
@@ -91,7 +93,7 @@ export async function createStaffUser(input: StaffRegisterInput): Promise<User> 
 }
 
 export async function loginUser(input: LoginInput): Promise<{ user: User; refreshToken: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: row, error } = await supabase
     .from('users')
     .select('id, email, password_hash, phone, full_name, role, avatar_url, is_active, created_at, updated_at')
@@ -107,6 +109,7 @@ export async function loginUser(input: LoginInput): Promise<{ user: User; refres
   const typedUser: User = {
     id: row.id,
     email: row.email,
+    phone: row.phone ?? null,
     fullName: row.full_name,
     role: row.role as UserRole,
     avatarUrl: row.avatar_url ?? null,
@@ -127,7 +130,7 @@ export async function loginUser(input: LoginInput): Promise<{ user: User; refres
 }
 
 export async function refreshTokens(refreshToken: string): Promise<{ accessToken: string }> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: session } = await supabase
     .from('refresh_sessions')
     .select('id, user_id, expires_at')
@@ -142,6 +145,7 @@ export async function refreshTokens(refreshToken: string): Promise<{ accessToken
   const typedUser: User = {
     id: user.id,
     email: user.email,
+    phone: user.phone ?? null,
     fullName: '',
     role: user.role as UserRole,
     avatarUrl: null,
@@ -163,12 +167,12 @@ export async function refreshTokens(refreshToken: string): Promise<{ accessToken
 }
 
 export async function logoutUser(userId: string) {
-  const supabase = createClient()
+  const supabase = await createClient()
   await supabase.from('refresh_sessions').delete().eq('user_id', userId)
 }
 
 export async function getCurrentUser(userId: string): Promise<User | null> {
-  const supabase = createClient()
+  const supabase = await createClient()
   const { data: user } = await supabase
     .from('users')
     .select('id, email, phone, full_name, role, avatar_url, is_active, created_at, updated_at')
@@ -179,6 +183,7 @@ export async function getCurrentUser(userId: string): Promise<User | null> {
   return {
     id: user.id,
     email: user.email,
+    phone: user.phone ?? null,
     fullName: user.full_name,
     role: user.role as UserRole,
     avatarUrl: user.avatar_url ?? null,

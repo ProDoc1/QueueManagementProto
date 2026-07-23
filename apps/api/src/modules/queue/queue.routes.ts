@@ -9,7 +9,7 @@ export async function queueRoutes(app: FastifyInstance) {
 
   // ── GET today's queue ───────────────────────────────────────────────────────
   app.get('/', {
-    preHandler: app.requireRole(['doctor', 'receptionist', 'admin']),
+    preHandler: app.requireRole(['doctor', 'receptionist', ]),
     schema: {
       tags: ['Queue'],
       summary: "Get today's queue for a doctor",
@@ -78,7 +78,7 @@ export async function queueRoutes(app: FastifyInstance) {
 
   // ── Add walk-in patient ─────────────────────────────────────────────────────
   app.post('/', {
-    preHandler: app.requireRole(['receptionist', 'admin']),
+    preHandler: app.requireRole(['receptionist', ]),
     schema: {
       tags: ['Queue'],
       summary: 'Add a walk-in patient to the queue',
@@ -164,7 +164,7 @@ export async function queueRoutes(app: FastifyInstance) {
 
   // ── Manual status override ──────────────────────────────────────────────────
   app.put('/:id/status', {
-    preHandler: app.requireRole(['doctor', 'receptionist', 'admin']),
+    preHandler: app.requireRole(['doctor', 'receptionist', ]),
     schema: {
       tags: ['Queue'],
       summary: 'Override a queue entry status (e.g. mark as no-show / left)',

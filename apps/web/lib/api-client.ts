@@ -1,5 +1,7 @@
 'use client'
 
+import { useAuth, type UserRole } from './auth-context'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000'
 
 type RequestOptions = {
@@ -9,15 +11,38 @@ type RequestOptions = {
 }
 
 export async function apiRequest<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+  const headers: Record<string, string> = {}
   if (opts.token) headers['Authorization'] = `Bearer ${opts.token}`
+  if (opts.body) headers['Content-Type'] = 'application/json'
 
-  const res = await fetch(`${API_URL}${path}`, {
+  let res = await fetch(`${API_URL}${path}`, {
     method: opts.method ?? 'GET',
     credentials: 'include',
     headers,
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   })
+
+  // Auto-refresh: if we get a 401 and had a token, try refreshing it once
+  if (res.status === 401 && opts.token) {
+    try {
+      const refreshRes = await fetch(`${API_URL}/api/auth/refresh`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+      if (refreshRes.ok) {
+        const { accessToken } = await refreshRes.json() as { accessToken: string }
+        headers['Authorization'] = `Bearer ${accessToken}`
+        res = await fetch(`${API_URL}${path}`, {
+          method: opts.method ?? 'GET',
+          credentials: 'include',
+          headers,
+          body: opts.body ? JSON.stringify(opts.body) : undefined,
+        })
+      }
+    } catch {
+      // Refresh failed — fall through to the original 401 error
+    }
+  }
 
   if (!res.ok) {
     const err = await res.json().catch(() => ({ error: res.statusText }))

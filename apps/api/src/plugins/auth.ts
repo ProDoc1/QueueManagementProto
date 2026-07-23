@@ -13,14 +13,17 @@ declare module '@fastify/jwt' {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    jwtUser: JwtPayload
+    jwtUser: JwtPayload | null
   }
 }
 
 export const authPlugin = fp(async (app: FastifyInstance) => {
-  await app.register(cookie, { secret: process.env.COOKIE_SECRET! })
+  const cookieSecret = process.env.COOKIE_SECRET ?? 'development-cookie-secret'
+  const jwtSecret = process.env.JWT_SECRET ?? 'development-jwt-secret'
+
+  await app.register(cookie, { secret: cookieSecret })
   await app.register(jwt, {
-    secret: process.env.JWT_SECRET!,
+    secret: jwtSecret,
     sign: { expiresIn: '15m' },
   })
 

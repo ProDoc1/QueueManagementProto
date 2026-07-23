@@ -46,10 +46,10 @@ function fmt12(hour: number) {
   return `${hour - 12}:00 PM`
 }
 
-// Clean OpenFreeMap style definitions to bypass theme load blocks
+// Stable basemap definitions that avoid the broken OpenFreeMap sprite/tile fetch chain.
 const FREE_MAP_STYLES = {
-  light: "https://tiles.openfreemap.org/styles/liberty",
-  dark: "https://tiles.openfreemap.org/styles/dark",
+  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
 };
 
 // ─── City Map ─────────────────────────────────────────────────────────────────
@@ -62,20 +62,20 @@ function CityMap({ onSelect, clinics }: { onSelect: (c: any) => void; clinics: a
   });
 
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setViewport((prev) => ({
-            ...prev,
-            center: [position.coords.longitude, position.coords.latitude],
-          }));
-        },
-        (error) => {
-          console.error("Error getting user location:", error);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
+    if (!("geolocation" in navigator)) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setViewport((prev) => ({
+          ...prev,
+          center: [position.coords.longitude, position.coords.latitude],
+        }));
+      },
+      (error) => {
+        console.warn("Location unavailable, using default city center:", error.code, error.message);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
   }, []);
 
   return (
@@ -84,6 +84,22 @@ function CityMap({ onSelect, clinics }: { onSelect: (c: any) => void; clinics: a
         viewport={viewport}
         onViewportChange={setViewport}
         styles={FREE_MAP_STYLES}
+        onStyleImageMissing={(e) => {
+          const map = e.target;
+          const missingImageId = (e as any).detail?.id || "wood-pattern";
+
+          if (!map.hasImage(missingImageId)) {
+            const canvas = document.createElement("canvas");
+            canvas.width = 1;
+            canvas.height = 1;
+            const ctx = canvas.getContext("2d");
+
+            if (ctx) {
+              const imageData = ctx.getImageData(0, 0, 1, 1);
+              map.addImage(missingImageId, imageData);
+            }
+          }
+        }}
       >
         {/* Controls aligned cleanly at the bottom right */}
         <MapControls position="bottom-right" showZoom showLocate />

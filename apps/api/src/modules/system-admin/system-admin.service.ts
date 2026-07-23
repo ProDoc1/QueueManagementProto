@@ -142,8 +142,8 @@ export async function getPlatformStatistics(app: FastifyInstance, period: string
       throw new Error('Invalid period')
   }
 
-  const formattedStartDate = startDate.toISOString().split('T')[0]
-  const formattedEndDate = endDate.toISOString().split('T')[0]
+  const formattedStartDate = startDate.toISOString().split('T')[0] ?? ''
+  const formattedEndDate = endDate.toISOString().split('T')[0] ?? ''
 
   // Get aggregated data from statistics table
   const { rows: statsRows } = await app.db.query(

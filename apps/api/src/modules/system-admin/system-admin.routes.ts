@@ -202,6 +202,7 @@ export async function systemAdminRoutes(app: FastifyInstance) {
       },
       response: {
         200: { type: 'string' },
+        400: { type: 'object', properties: { error: { type: 'string' } } },
       },
     },
   }, async (request, reply) => {

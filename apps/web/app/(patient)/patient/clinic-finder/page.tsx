@@ -15,10 +15,10 @@ const INITIAL_VIEWPORT = {
   pitch: 55,
 };
 
-// OpenFreeMap 3D Vector sheet endpoints
+// Stable basemap definitions that avoid the broken OpenFreeMap sprite/tile fetch chain.
 const FREE_MAP_STYLES = {
-  light: "https://tiles.openfreemap.org/styles/3d",
-  dark: "https://tiles.openfreemap.org/styles/3d",
+  light: "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json",
+  dark: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
 };
 
 export default function ClinicFinderPage() {
@@ -29,20 +29,20 @@ export default function ClinicFinderPage() {
   const [favoriteClinics, setFavoriteClinics] = useState<string[]>([]);
 
   useEffect(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setViewport((prev) => ({
-            ...prev,
-            center: [position.coords.longitude, position.coords.latitude],
-          }));
-        },
-        (error) => {
-          console.error("Error getting user location:", error);
-        },
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-    }
+    if (!("geolocation" in navigator)) return;
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setViewport((prev) => ({
+          ...prev,
+          center: [position.coords.longitude, position.coords.latitude],
+        }));
+      },
+      (error) => {
+        console.warn("Location unavailable, using default city center:", error.code, error.message);
+      },
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
   }, []);
 
   useEffect(() => {

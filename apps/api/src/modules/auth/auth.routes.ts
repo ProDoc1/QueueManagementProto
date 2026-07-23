@@ -164,7 +164,7 @@ export async function authRoutes(app: FastifyInstance) {
   })
 
   app.post('/staff', {
-    preHandler: app.requireRole([,'system_admin']),
+    preHandler: app.requireRole(['system_admin']),
     schema: {
       tags: ['Auth'],
       summary: 'Create a staff account (doctor or receptionist) — Admin only',

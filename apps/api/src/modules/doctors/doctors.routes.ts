@@ -21,7 +21,6 @@ const DoctorProfile = {
     latitude:        { type: 'number', nullable: true },
     longitude:       { type: 'number', nullable: true },
     isLive:          { type: 'boolean', nullable: true },
-    isLive:          { type: 'boolean', nullable: true },
     rating:          { type: 'number', nullable: true },
   },
 }

@@ -122,7 +122,6 @@
 | Layer | Technology |
 |---|---|
 | Monorepo | **Turborepo** |
-| Containers | **Docker + Docker Compose** |
 | CI/CD | **GitHub Actions** |
 | Cloud (MVP) | **Railway / Render** |
 | Cloud (Scale) | **AWS / GCP** |
@@ -286,8 +285,7 @@ medical-center/                         ← monorepo root
 │   └── ui/                              ← shared design system components
 │
 └── infra/
-    ├── docker-compose.yml               ← postgres, redis, api, web
-    ├── docker-compose.prod.yml
+    ├── infra/                           ← runtime and deployment support
     └── nginx.conf
 ```
 
@@ -573,7 +571,7 @@ Doctor / Receptionist calls next:
 
 **Tasks:**
 - [ ] Initialize Turborepo monorepo
-- [ ] Docker Compose: PostgreSQL 16, Redis 7, Fastify API, Next.js web
+- [ ] Local Supabase/Postgres + Redis-compatible dev services
 - [ ] Run `migrations/1_initial_schema.sql` on first start
 - [ ] Implement `users` table + JWT auth (register, login, refresh, logout)
 - [ ] Role middleware (RBAC guard: admin, doctor, patient, receptionist)
@@ -751,7 +749,7 @@ npm install
 cp .env.example .env
 
 # Start all services
-docker compose -f infra/docker-compose.yml up
+npm run dev
 
 # Database schema auto-applies on first postgres start
 # API: http://localhost:4000
